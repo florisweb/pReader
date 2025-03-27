@@ -6,13 +6,14 @@
 class connectionManager
 {    
   public:
-    constexpr static float version = 1.4;
+    constexpr static float version = 1.5;
     
     void setup(const char* _ssid, const char* _password, const String _deviceId, const String _deviceKey, void _onMessage(DynamicJsonDocument message));
     void loop();
     void defineEventDocs(String JSONString);
     void defineAccessPointDocs(String JSONString);
     void send(String _string);
+    void sendRequest(String _type, String _data, void _onRespond(DynamicJsonDocument message));
     bool isConnected();
     bool isAuthenticated();
   private:

@@ -19,6 +19,11 @@ void (*onMessagePointer)(DynamicJsonDocument message);
 void(* rebootESP) (void) = 0; // create a standard reset function
 
 
+typedef void (*RespondCallbackPointer)(DynamicJsonDocument);
+int requestIdList[5];
+RespondCallbackPointer requestCallbackList[5];
+
+
 String eventDocs = "[]";
 String accessPointDocs = "[]";
 void sendDeviceInfo(String _requestId = "") {
@@ -49,11 +54,11 @@ void sendDeviceInfo(String _requestId = "") {
 void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
   switch (type) {
     case WStype_DISCONNECTED:
-      Serial.printf("[WSc] Disconnected!\n");
+      Serial.printf("[ConnectionManager] Disconnected!\n");
       authenticated = false;
       break;
     case WStype_CONNECTED:
-      Serial.printf("[WSc] Connected to url: %s\n", payload);
+      Serial.printf("[ConnectionManager] Connected to url: %s\n", payload);
       authenticated = false;
       lastHeartBeat = millis();
 
@@ -61,12 +66,14 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
       webSocket.sendTXT("{\"id\":\"" + deviceId + "\", \"key\": \"" + deviceKey + "\", \"requestId\": \"" + String(random(0, 10000)) + "\"}");
       break;
     case WStype_TEXT:
-      Serial.printf("[WSc] get text: %s\n", payload);
+      Serial.printf("[ConnectionManager] Get text: %s\n", payload);
       if (authenticated)
       {
         DynamicJsonDocument doc(1024);
         deserializeJson(doc, payload);
         String type = doc["type"];
+        bool isResponse = doc["isResponse"];
+        int requestId = doc["requestId"];
 
         if (type == "identify")
         {
@@ -83,6 +90,20 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
           sendDeviceInfo(requestId);
           return;
         }
+
+        if (isResponse)
+        {
+          for (int i = 0; i < sizeof(requestIdList)/sizeof(int); i++)
+          {
+            if (requestIdList[i] != requestId) continue;
+            requestCallbackList[i](doc);
+            requestIdList[i] = 0; // Reset slot
+            return;
+          }
+          Serial.println("[ConnectionManager] Error: response received but no request was send (or at least not found)");
+          return;
+        }
+
         onMessagePointer(doc);
       } else {
         DynamicJsonDocument doc(1024);
@@ -95,7 +116,7 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
           onMessagePointer(doc);
         } else if (responseContent == "{\"type\":\"auth\",\"data\":true}");
         {
-          Serial.println("Successfully authenticated.");
+          Serial.println("[ConnectionManager] Successfully authenticated.");
           authenticated = true;
           sendDeviceInfo();
         }
@@ -131,7 +152,7 @@ void connectionManager::setup(const char* _ssid, const char* _password, const St
   Serial.setDebugOutput(true);
 
   WiFiMulti.addAP(_ssid, _password);
-  Serial.print("Started connecting to network: ");
+  Serial.print("[ConnectionManager] Started connecting to network: ");
   Serial.println(_ssid);
   while (WiFiMulti.run() != WL_CONNECTED)
   {
@@ -144,9 +165,48 @@ void connectionManager::setup(const char* _ssid, const char* _password, const St
   webSocket.onEvent(webSocketEvent);
   webSocket.setReconnectInterval(5000); // try every 5000 again if connection has failed
 }
+
+
+
 void connectionManager::send(String _string) {
   webSocket.sendTXT(_string);
 }
+
+void connectionManager::sendRequest(String _type, String _data, void _onRespond(DynamicJsonDocument message)) {
+  int requestId = random(0, 1000000);
+  String dataString = "{\"type\": \"";
+  dataString.concat(_type);
+  dataString.concat("\", \"data\":\"");
+  dataString.concat(_data);
+  dataString.concat("\", \"requestId\":");
+  dataString.concat(requestId);
+  dataString.concat("}");
+
+  int curIndex = -1;
+  for (int i = 0; i < sizeof(requestIdList)/sizeof(int); i++)
+  {
+    if (requestIdList[i] != 0) continue;
+    curIndex = i;
+    break;
+  }
+  if (curIndex == -1)
+  {
+    Serial.println("[ConnectionManager] Error: cannot send request, no empty request slots.");
+    return;
+  }
+
+  Serial.print("Found index:");
+  Serial.println(curIndex);
+  
+  requestIdList[curIndex] = requestId;
+  requestCallbackList[curIndex] = _onRespond;
+
+  webSocket.sendTXT(dataString);
+}
+
+
+
+
 bool connectionManager::isConnected() {
   return true;
 }
@@ -171,16 +231,15 @@ void connectionManager::loop() {
   deltaHeartbeat = millis() - lastHeartBeat;
   if (deltaHeartbeat > heartbeatFrequency * 2 && webSocket.isConnected())
   {
-    Serial.println("Disconnected due to 2 missing heartbeats");
+    Serial.println("[ConnectionManager] Disconnected due to 2 missing heartbeats");
     webSocket.disconnect();
   }
 
   if (deltaHeartbeat > deviceRestartFrequency)
   {
-    Serial.println("Restarting device due to lack of connection.");
+    Serial.println("[ConnectionManager] Restarting device due to lack of connection.");
     rebootESP();
   }
-
 
   webSocket.loop();
 }

@@ -176,9 +176,9 @@ void connectionManager::sendRequest(String _type, String _data, void _onRespond(
   int requestId = random(0, 1000000);
   String dataString = "{\"type\": \"";
   dataString.concat(_type);
-  dataString.concat("\", \"data\":\"");
+  dataString.concat("\", \"data\":");
   dataString.concat(_data);
-  dataString.concat("\", \"requestId\":");
+  dataString.concat(", \"requestId\":");
   dataString.concat(requestId);
   dataString.concat("}");
 
@@ -200,7 +200,8 @@ void connectionManager::sendRequest(String _type, String _data, void _onRespond(
   
   requestIdList[curIndex] = requestId;
   requestCallbackList[curIndex] = _onRespond;
-
+  Serial.print("Send request: ");
+  Serial.println(dataString);
   webSocket.sendTXT(dataString);
 }
 

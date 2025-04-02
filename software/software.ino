@@ -43,7 +43,7 @@ const int imageSectionLength = 15000;
 uint8_t imageOverlapBuffer[imageSectionLength]; // Max buffer length is screen width
 int overlapBufferLength = 0;
 int summedYPos = 0;
-
+const int displayWidth = 680;
 
 
 
@@ -66,7 +66,6 @@ void onImageSectionResponse(DynamicJsonDocument message) {
     );
   } else Serial.println("Finished fetching all parts.");
 
-
   const char * text = imageData.c_str();
   size_t outputLength;
   uint8_t* decoded = base64_decode((const unsigned char *)text, strlen(text), &outputLength);
@@ -82,34 +81,35 @@ void onImageSectionResponse(DynamicJsonDocument message) {
   }
 
   free(decoded);
-
-  Serial.print("input length: ");
-  Serial.print(outputLength);
-  Serial.print(" maxSectionLength: ");
-  Serial.print(maxSectionLength);
-  Serial.print(" rows: ");
-  Serial.print(rows);
-  Serial.print(" fullSectionLength: ");
-  Serial.print(fullSectionLength);
-  Serial.print(" pre-overlapBufferLength: ");
-  Serial.print(overlapBufferLength);
+  //  Serial.print("convert data: ");
+  //  Serial.println(millis() - start);
+  //
+  //  Serial.print("input length: ");
+  //  Serial.print(outputLength);
+  //  Serial.print(" maxSectionLength: ");
+  //  Serial.print(maxSectionLength);
+  //  Serial.print(" rows: ");
+  //  Serial.print(rows);
+  //  Serial.print(" fullSectionLength: ");
+  //  Serial.print(fullSectionLength);
+  //  Serial.print(" pre-overlapBufferLength: ");
+  //  Serial.print(overlapBufferLength);
 
   int yStart = summedYPos;
   summedYPos += rows;
   overlapBufferLength = maxSectionLength - fullSectionLength;
-  Serial.print(" post-overlapBufferLength: ");
-  Serial.println(overlapBufferLength);
+  //  Serial.print(" post-overlapBufferLength: ");
+  //  Serial.println(overlapBufferLength);
 
   for (int i = 0; i < overlapBufferLength; i++)
   {
     imageOverlapBuffer[i] = decoded[outputLength - overlapBufferLength + i];
   }
 
-  display.drawImage(fullSection, 0, yStart, imageWidth, rows, true);
+  //  display.writeImage(fullSection, 0, yStart, imageWidth, rows, true);
+  //  if (yStart < displayWidth && summedYPos > displayWidth) display.display(true);
 
-  size_t freeHeap = heap_caps_get_free_size(MALLOC_CAP_DEFAULT);
-  Serial.print("Initial free heap size: ");
-  Serial.println(freeHeap);
+  display.drawImage(fullSection, 0, yStart, imageWidth, rows, true);
 }
 
 

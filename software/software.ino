@@ -29,6 +29,7 @@ int musicPage_curMusicIndex = 0;
 int musicPage_curPageIndex = 0;
 UIPage curPage = HOME;
 
+
 int availableMusicCount = 0;
 String availableMusic_names[10];
 int availableMusic_pageCount[10];
@@ -85,10 +86,6 @@ void onImageSectionResponse(DynamicJsonDocument message) {
   int startIndex = message["response"]["startIndex"];
   String imageData = message["response"]["data"];
   curImageBufferIndex = startIndex + imageSectionLength;
-  //  Serial.print("Got section:");
-  //  Serial.print(startIndex);
-  //  Serial.print(" - ");
-  //  Serial.println(curImageBufferIndex);
 
   if (curImageBufferIndex < remoteImageLength)
   {
@@ -114,25 +111,9 @@ void onImageSectionResponse(DynamicJsonDocument message) {
   }
 
   free(decoded);
-  //  Serial.print("convert data: ");
-  //  Serial.println(millis() - start);
-  //
-  //  Serial.print("input length: ");
-  //  Serial.print(outputLength);
-  //  Serial.print(" maxSectionLength: ");
-  //  Serial.print(maxSectionLength);
-  //  Serial.print(" rows: ");
-  //  Serial.print(rows);
-  //  Serial.print(" fullSectionLength: ");
-  //  Serial.print(fullSectionLength);
-  //  Serial.print(" pre-overlapBufferLength: ");
-  //  Serial.print(overlapBufferLength);
-
   int yStart = summedYPos;
   summedYPos += rows;
   overlapBufferLength = maxSectionLength - fullSectionLength;
-  //  Serial.print(" post-overlapBufferLength: ");
-  //  Serial.println(overlapBufferLength);
 
   for (int i = 0; i < overlapBufferLength; i++)
   {
@@ -166,7 +147,7 @@ void onMessage(DynamicJsonDocument message) {
       if (availableMusic_pageCount[i] == 0) break;
       const char* musicName = message["data"]["availableMusic"][i]["name"].as<const char*>();
       availableMusic_names[i] = String(musicName);
-      availableMusicCount = i;
+      availableMusicCount = i + 1;
 
       Serial.print("Music available: ");
       Serial.print(availableMusic_names[i]);
@@ -232,19 +213,27 @@ void loop() {
       display.fillScreen(GxEPD_WHITE);
     } else if (ch == "m") {
       openPage(MUSIC);
+    } else if (ch == "h") {
+      openPage(HOME);
+    } else if (ch == "m0") {
+      musicPage_curMusicIndex = 0;
+    } else if (ch == "m1") {
+      musicPage_curMusicIndex = 1;
+    } else if (ch == "m2") {
+      musicPage_curMusicIndex = 2;
     } else if (ch == "p0") {
       musicPage_curPageIndex = 0;
     } else if (ch == "p1") {
       musicPage_curPageIndex = 1;
     } else if (ch == "p2") {
       musicPage_curPageIndex = 2;
-    } 
+    }
   }
 }
 
 
 void openMusicPage(int _curMusicIndex) {
-  musicPage_curMusicIndex = min(_curMusicIndex, availableMusicCount);
+  musicPage_curMusicIndex = min(_curMusicIndex, availableMusicCount - 1);
   openPage(MUSIC);
 }
 void loadMusicImage() {
@@ -255,13 +244,47 @@ void loadMusicImage() {
   );
 }
 
+void drawHomePage() {
+  display.setFont(&FreeMonoBold9pt7b);
+  display.setTextColor(GxEPD_BLACK);
+
+  display.firstPage();
+  do
+  {
+    display.fillScreen(GxEPD_WHITE);
+    Serial.print("music ");
+    Serial.println(availableMusicCount);
+    for (int i = 0; i < availableMusicCount; i++)
+    {
+      Serial.print("Draw ");
+      Serial.println(i);
+      String curName = availableMusic_names[i] + "(" + String(availableMusic_pageCount[i]) + ")";
+      Serial.print("Name ");
+      Serial.println(curName);
+      int16_t tbx, tby; uint16_t tbw, tbh;
+      display.getTextBounds(curName, 0, 0, &tbx, &tby, &tbw, &tbh);
+      
+      uint16_t x = ((display.width() - tbw) / 2) - tbx;
+      uint16_t y = ((display.height() - tbh) / 2) - tby + tbh * 2 * i;
+      Serial.print("pos ");
+      Serial.print(x);
+      Serial.print(" - ");
+      Serial.println(y);
+
+      display.setCursor(x, y);
+      display.print(curName);
+    }
+  }
+  while (display.nextPage());
+}
+
 
 
 void openPage(UIPage page) {
   if (page == HOME)
   {
     Serial.println("open HOME");
-
+    drawHomePage();
   } else if (page == MUSIC)
   {
     Serial.println("open MUSIC");

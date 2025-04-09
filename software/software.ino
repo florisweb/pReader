@@ -1,5 +1,7 @@
 #include <GxEPD2_BW.h>
-#include <Fonts/FreeMonoBold9pt7b.h>
+//#include <Fonts/FreeMonoBold9pt7b.h>
+#include <Fonts/FreeSansBoldOblique18pt7b.h>
+
 #include "connectionManager.h"
 extern "C" {
 #include "crypto/base64.h"
@@ -94,7 +96,7 @@ void onImageSectionResponse(DynamicJsonDocument message) {
       String("{\"startIndex\":" + String(curImageBufferIndex) + ", \"sectionLength\":" + String(imageSectionLength) + ", \"imageRequestId\": " + String(musicImageRequestId) + "}"),
       &onImageSectionResponse
     );
-  } else Serial.println("Finished fetching all parts.");
+  } else onImageFullyDrawn();
 
   const char * text = imageData.c_str();
   size_t outputLength;
@@ -121,6 +123,60 @@ void onImageSectionResponse(DynamicJsonDocument message) {
   }
 
   display.drawImage(fullSection, 0, yStart, imageWidth, rows, true);
+
+  display.setPartialWindow(0, 0, display.width(), 100);
+  Serial.println("set text");
+  display.setTextColor(GxEPD_BLACK);
+  String curName = availableMusic_names[musicPage_curMusicIndex];
+  String curPage = String(musicPage_curPageIndex + 1) +  "/" + String(availableMusic_pageCount[musicPage_curMusicIndex]);
+
+  int16_t tbx, tby; uint16_t tbw, tbh;
+  display.getTextBounds(curName, 0, 0, &tbx, &tby, &tbw, &tbh);
+
+  uint16_t x = ((display.width() - tbw) / 2) - tbx;
+  uint16_t y = tbh / 2 - tby;
+
+  display.setCursor(x, y);
+  display.print(curName);
+
+  display.getTextBounds(curPage, 0, 0, &tbx, &tby, &tbw, &tbh);
+
+  x = ((display.width() - tbw) / 2) - tbx;
+  y = tbh * 3 / 2 - tby;
+
+  display.setCursor(x, y);
+  display.print(curPage);
+//  display.display(true);
+  display.setFullWindow();
+}
+
+void onImageFullyDrawn() {
+  Serial.println("Finished fetching all parts.");
+
+  //  display.setPartialWindow(0, 0, 300, 100);
+  //  Serial.println("set text");
+  //  display.setFont(&FreeMonoBold9pt7b);
+  //  display.setTextColor(GxEPD_BLACK);
+  //  String curName = availableMusic_names[musicPage_curMusicIndex];
+  //  String curPage = String(musicPage_curPageIndex + 1) +  "/" + String(availableMusic_pageCount[musicPage_curMusicIndex]);
+  //
+  //  int16_t tbx, tby; uint16_t tbw, tbh;
+  //  display.getTextBounds(curName, 0, 0, &tbx, &tby, &tbw, &tbh);
+  //
+  //  uint16_t x = ((display.width() - tbw) / 2) - tbx;
+  //  uint16_t y = tbh / 2 - tby;
+  //
+  //  display.setCursor(x, y);
+  //  display.print(curName);
+  //
+  //  display.getTextBounds(curPage, 0, 0, &tbx, &tby, &tbw, &tbh);
+  //
+  //  x = ((display.width() - tbw) / 2) - tbx;
+  //  y = tbh * 3 / 2 - tby;
+  //
+  //  display.setCursor(x, y);
+  //  display.print(curPage);
+  //  display.display(true);
 }
 
 
@@ -148,13 +204,8 @@ void onMessage(DynamicJsonDocument message) {
       const char* musicName = message["data"]["availableMusic"][i]["name"].as<const char*>();
       availableMusic_names[i] = String(musicName);
       availableMusicCount = i + 1;
-
-      Serial.print("Music available: ");
-      Serial.print(availableMusic_names[i]);
-      Serial.print(" (");
-      Serial.print(availableMusic_pageCount[i]);
-      Serial.println(")");
     }
+    if (curPage == HOME) openPage(HOME);
   }
 }
 
@@ -244,38 +295,85 @@ void loadMusicImage() {
   );
 }
 
-void drawHomePage() {
-  display.setFont(&FreeMonoBold9pt7b);
-  display.setTextColor(GxEPD_BLACK);
 
+
+void drawHomePage() {
   display.firstPage();
   do
   {
     display.fillScreen(GxEPD_WHITE);
-    Serial.print("music ");
-    Serial.println(availableMusicCount);
+
+    drawHomePageHeader();
+
     for (int i = 0; i < availableMusicCount; i++)
     {
-      Serial.print("Draw ");
-      Serial.println(i);
-      String curName = availableMusic_names[i] + "(" + String(availableMusic_pageCount[i]) + ")";
-      Serial.print("Name ");
-      Serial.println(curName);
-      int16_t tbx, tby; uint16_t tbw, tbh;
-      display.getTextBounds(curName, 0, 0, &tbx, &tby, &tbw, &tbh);
-      
-      uint16_t x = ((display.width() - tbw) / 2) - tbx;
-      uint16_t y = ((display.height() - tbh) / 2) - tby + tbh * 2 * i;
-      Serial.print("pos ");
-      Serial.print(x);
-      Serial.print(" - ");
-      Serial.println(y);
-
-      display.setCursor(x, y);
-      display.print(curName);
+      drawMusicPreviewPanel(i, 0, i, false);
+      drawMusicPreviewPanel(i, 1, i, false);
+      drawMusicPreviewPanel(i + 1, 2, i, true);
     }
+    drawHomePageHeader();
   }
   while (display.nextPage());
+}
+
+const int homePage_headerHeight = 60;
+const int homePage_margin = 10;
+void drawHomePageHeader() {
+  String headerName = "Piano Reader";
+  int16_t tbx, tby; uint16_t tbw, tbh;
+  display.setTextColor(GxEPD_BLACK);
+  display.setFont(&FreeSansBoldOblique18pt7b);
+  display.getTextBounds(headerName, 0, 0, &tbx, &tby, &tbw, &tbh);
+
+  uint16_t x = homePage_margin - tbx;
+  uint16_t y = ((homePage_headerHeight - tbh) / 2) - tby;
+
+  display.setCursor(x, y);
+  display.print(headerName);
+  display.fillRect(homePage_margin, homePage_headerHeight - 1, display.width() - homePage_margin * 2, 1, GxEPD_BLACK);
+}
+
+int horizontalListItems = 4;
+void drawMusicPreviewPanel(int _listIndex, int _verticalListIndex, int _musicItemIndex, bool selected) {
+  String curName = availableMusic_names[_musicItemIndex];
+  String subText = String(availableMusic_pageCount[_musicItemIndex]) + " pages - playing";
+
+  const int hMargin = homePage_margin;
+  const int vMargin = homePage_margin * 3;
+  const int maxWidth = display.width() / horizontalListItems;
+  const int maxHeight = 225 + 2 * vMargin;
+  const int width = maxWidth - hMargin * 2;
+  const int height = maxHeight - vMargin * 2;
+  const int previewMargin = 10;
+  const int previewHeight = (width - 2 * previewMargin) * 1.41;
+
+  const int topX = maxWidth * _listIndex + hMargin;
+  const int topY = maxHeight * _verticalListIndex + vMargin + homePage_headerHeight + vMargin;
+
+  if (selected)
+  {
+    display.fillRect(topX, topY, width, height, GxEPD_BLACK);
+    display.fillRect(topX + previewMargin, topY + previewMargin, (width - 2 * previewMargin), previewHeight, GxEPD_WHITE);
+  } else {
+    display.drawRect(topX, topY, width, height, GxEPD_BLACK);
+    display.drawRect(topX + previewMargin, topY + previewMargin, (width - 2 * previewMargin), previewHeight, GxEPD_BLACK);
+  }
+
+  display.setFont();
+  if (selected) {
+    display.setTextColor(GxEPD_WHITE);
+  } else display.setTextColor(GxEPD_BLACK);;
+
+  int16_t tbx, tby; uint16_t tbw, tbh;
+  display.getTextBounds(curName, 0, 0, &tbx, &tby, &tbw, &tbh);
+
+  uint16_t x = -tbx + topX + previewMargin;
+  uint16_t y = (((height - previewHeight) - tbh) / 2) - tby + topY + previewHeight;
+  display.setCursor(x, y);
+  display.print(curName);
+
+  display.setCursor(x, y + tbh * 1.5);
+  display.print(subText);
 }
 
 
@@ -290,5 +388,4 @@ void openPage(UIPage page) {
     Serial.println("open MUSIC");
     loadMusicImage();
   }
-
 }

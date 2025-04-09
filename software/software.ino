@@ -1,6 +1,7 @@
 #include <GxEPD2_BW.h>
 //#include <Fonts/FreeMonoBold9pt7b.h>
 #include <Fonts/FreeSansBoldOblique18pt7b.h>
+#include <Fonts/FreeSansOblique9pt7b.h>
 
 #include "connectionManager.h"
 extern "C" {
@@ -31,10 +32,13 @@ int musicPage_curMusicIndex = 0;
 int musicPage_curPageIndex = 0;
 UIPage curPage = HOME;
 
+const String learningStates[] = {"Learning", "Wishlist", "Finished"};
+
 
 int availableMusicCount = 0;
-String availableMusic_names[10];
-int availableMusic_pageCount[10];
+String availableMusic_name[20];
+int availableMusic_pageCount[20];
+int availableMusic_learningState[20];
 
 
 
@@ -127,7 +131,7 @@ void onImageSectionResponse(DynamicJsonDocument message) {
   display.setPartialWindow(0, 0, display.width(), 100);
   Serial.println("set text");
   display.setTextColor(GxEPD_BLACK);
-  String curName = availableMusic_names[musicPage_curMusicIndex];
+  String curName = availableMusic_name[musicPage_curMusicIndex];
   String curPage = String(musicPage_curPageIndex + 1) +  "/" + String(availableMusic_pageCount[musicPage_curMusicIndex]);
 
   int16_t tbx, tby; uint16_t tbw, tbh;
@@ -146,37 +150,12 @@ void onImageSectionResponse(DynamicJsonDocument message) {
 
   display.setCursor(x, y);
   display.print(curPage);
-//  display.display(true);
+  //  display.display(true);
   display.setFullWindow();
 }
 
 void onImageFullyDrawn() {
   Serial.println("Finished fetching all parts.");
-
-  //  display.setPartialWindow(0, 0, 300, 100);
-  //  Serial.println("set text");
-  //  display.setFont(&FreeMonoBold9pt7b);
-  //  display.setTextColor(GxEPD_BLACK);
-  //  String curName = availableMusic_names[musicPage_curMusicIndex];
-  //  String curPage = String(musicPage_curPageIndex + 1) +  "/" + String(availableMusic_pageCount[musicPage_curMusicIndex]);
-  //
-  //  int16_t tbx, tby; uint16_t tbw, tbh;
-  //  display.getTextBounds(curName, 0, 0, &tbx, &tby, &tbw, &tbh);
-  //
-  //  uint16_t x = ((display.width() - tbw) / 2) - tbx;
-  //  uint16_t y = tbh / 2 - tby;
-  //
-  //  display.setCursor(x, y);
-  //  display.print(curName);
-  //
-  //  display.getTextBounds(curPage, 0, 0, &tbx, &tby, &tbw, &tbh);
-  //
-  //  x = ((display.width() - tbw) / 2) - tbx;
-  //  y = tbh * 3 / 2 - tby;
-  //
-  //  display.setCursor(x, y);
-  //  display.print(curPage);
-  //  display.display(true);
 }
 
 
@@ -201,8 +180,9 @@ void onMessage(DynamicJsonDocument message) {
     {
       availableMusic_pageCount[i] = message["data"]["availableMusic"][i]["pages"];
       if (availableMusic_pageCount[i] == 0) break;
+      availableMusic_learningState[i] = message["data"]["availableMusic"][i]["learningState"];
       const char* musicName = message["data"]["availableMusic"][i]["name"].as<const char*>();
-      availableMusic_names[i] = String(musicName);
+      availableMusic_name[i] = String(musicName);
       availableMusicCount = i + 1;
     }
     if (curPage == HOME) openPage(HOME);
@@ -266,19 +246,59 @@ void loop() {
       openPage(MUSIC);
     } else if (ch == "h") {
       openPage(HOME);
-    } else if (ch == "m0") {
-      musicPage_curMusicIndex = 0;
-    } else if (ch == "m1") {
-      musicPage_curMusicIndex = 1;
-    } else if (ch == "m2") {
-      musicPage_curMusicIndex = 2;
-    } else if (ch == "p0") {
-      musicPage_curPageIndex = 0;
-    } else if (ch == "p1") {
-      musicPage_curPageIndex = 1;
-    } else if (ch == "p2") {
-      musicPage_curPageIndex = 2;
+    } else if (ch == "next") {
+      next();
+    } else if (ch == "prev") {
+      prev();
+    } else if (ch == "ok") {
+      ok();
     }
+  }
+}
+
+void next() {
+  if (curPage == HOME)
+  {
+    homePage_selectMusicItem(musicPage_curMusicIndex + 1);
+    if (musicPage_curMusicIndex >= availableMusicCount - 1)
+    {
+      homePage_selectMusicItem(0);
+    }
+  } else {
+    musicPage_curPageIndex++;
+    if (musicPage_curPageIndex >= availableMusic_pageCount[musicPage_curMusicIndex])
+    {
+      musicPage_curPageIndex = 0;
+    }
+    openPage(MUSIC);
+  }
+}
+
+void prev() {
+  if (curPage == HOME)
+  {
+    homePage_selectMusicItem(musicPage_curMusicIndex - 1);
+    if (musicPage_curMusicIndex <= 0)
+    {
+      homePage_selectMusicItem(availableMusicCount - 1);
+    }
+  } else {
+    musicPage_curPageIndex--;
+    if (musicPage_curPageIndex < 0)
+    {
+      musicPage_curPageIndex = availableMusic_pageCount[musicPage_curMusicIndex] - 1;
+    }
+    openPage(MUSIC);
+  }
+}
+
+void ok() {
+  if (curPage == HOME)
+  {
+    if (musicPage_curMusicIndex == -1) return;
+    openMusicPage(musicPage_curMusicIndex);
+  } else {
+    openPage(HOME);
   }
 }
 
@@ -290,13 +310,18 @@ void openMusicPage(int _curMusicIndex) {
 void loadMusicImage() {
   ConnectionManager.sendRequest(
     String("requestMusicImage"),
-    String("{\"musicName\":\"" + String(availableMusic_names[musicPage_curMusicIndex]) + "\", \"pageIndex\":" + String(musicPage_curPageIndex) + "}"),
+    String("{\"musicName\":\"" + String(availableMusic_name[musicPage_curMusicIndex]) + "\", \"pageIndex\":" + String(musicPage_curPageIndex) + "}"),
     &onMusicImageRequestResponse
   );
 }
 
 
 
+
+const int homePage_headerHeight = 60;
+const int homePage_margin = 10;
+int horizontalListItems = 4;
+int verticalListItems = 3;
 void drawHomePage() {
   display.firstPage();
   do
@@ -304,20 +329,74 @@ void drawHomePage() {
     display.fillScreen(GxEPD_WHITE);
 
     drawHomePageHeader();
-
-    for (int i = 0; i < availableMusicCount; i++)
-    {
-      drawMusicPreviewPanel(i, 0, i, false);
-      drawMusicPreviewPanel(i, 1, i, false);
-      drawMusicPreviewPanel(i + 1, 2, i, true);
-    }
-    drawHomePageHeader();
+    drawHeaders();
+    drawHomePagePanels();
   }
   while (display.nextPage());
 }
 
-const int homePage_headerHeight = 60;
-const int homePage_margin = 10;
+
+void homePage_selectMusicItem(int musicItemIndex) {
+  Serial.print("Select ");
+  Serial.print(musicItemIndex);
+  Serial.print(" - prev: ");
+  Serial.println(musicPage_curMusicIndex);
+//  if (musicItemIndex == musicPage_curMusicIndex) return;
+  int prevIndex = musicPage_curMusicIndex;
+  musicPage_curMusicIndex = musicItemIndex;
+
+  int learningStateCounts[] = {0, 0, 0};
+  int preLearningState = 0;
+  int preListIndex = 0;
+  for (int i = 0; i < availableMusicCount; i++)
+  {
+    int learningState = availableMusic_learningState[i];
+    if (i == prevIndex)
+    {
+      preLearningState = learningState;
+      preListIndex = learningStateCounts[learningState];
+      break;
+    }
+
+    learningStateCounts[learningState]++;
+  }
+
+  const int hMargin = homePage_margin;
+  const int vMargin = homePage_margin * 3;
+  const int maxWidth = display.width() / horizontalListItems;
+  const int maxHeight = (display.height() - homePage_headerHeight - 40) / verticalListItems;
+
+  const int width = maxWidth - hMargin * 2;
+  const int height = maxHeight - vMargin * 2;
+
+  const int topX = maxWidth * preListIndex + hMargin;
+  const int topY = maxHeight * preLearningState + vMargin + homePage_headerHeight + vMargin;
+
+  display.fillRect(topX, topY, width, height, GxEPD_WHITE);
+
+  drawHomePageHeader();
+  drawHeaders();
+  drawHomePagePanels();
+  display.display(true);
+
+  delay(300);
+  drawHomePagePanels();
+  display.display(true);
+  //
+  //    Serial.print(topX);
+  //    Serial.print(" - ");
+  //    Serial.print(topY);
+  //    Serial.print(" - ");
+  //    Serial.print(width);
+  //    Serial.print(" - ");
+  //    Serial.println(height);
+  //    display.setPartialWindow(topX, topY, width, height);
+  //
+  //    display.display(true);
+  //    display.setFullWindow();
+}
+
+
 void drawHomePageHeader() {
   String headerName = "Piano Reader";
   int16_t tbx, tby; uint16_t tbw, tbh;
@@ -333,15 +412,48 @@ void drawHomePageHeader() {
   display.fillRect(homePage_margin, homePage_headerHeight - 1, display.width() - homePage_margin * 2, 1, GxEPD_BLACK);
 }
 
-int horizontalListItems = 4;
-void drawMusicPreviewPanel(int _listIndex, int _verticalListIndex, int _musicItemIndex, bool selected) {
-  String curName = availableMusic_names[_musicItemIndex];
-  String subText = String(availableMusic_pageCount[_musicItemIndex]) + " pages - playing";
+void drawHomePagePanels() {
+  int learningStateCounts[] = {0, 0, 0};
+  for (int i = 0; i < availableMusicCount; i++)
+  {
+    int learningState = availableMusic_learningState[i];
+    drawMusicPreviewPanel(learningStateCounts[learningState], availableMusic_learningState[i], i);
+    learningStateCounts[learningState]++;
+  }
+}
+
+void drawHeaders() {
+  const int vOffset = 40;
+  const int maxHeight = (display.height() - homePage_headerHeight - 40) / verticalListItems;
+  for (int i = 0; i < verticalListItems; i++)
+  {
+    display.setFont(&FreeSansOblique9pt7b);
+    display.setTextColor(GxEPD_BLACK);
+    String headerTitle = learningStates[i];
+
+    int16_t tbx, tby; uint16_t tbw, tbh;
+    display.getTextBounds(headerTitle, 0, 0, &tbx, &tby, &tbw, &tbh);
+
+    uint16_t x = homePage_margin - tbx;
+    uint16_t y = homePage_margin + homePage_headerHeight + vOffset + maxHeight * i;
+
+    display.setCursor(x, y);
+    display.print(headerTitle);
+  }
+}
+
+void drawMusicPreviewPanel(int _listIndex, int _verticalListIndex, int _musicItemIndex) {
+  bool selected = _musicItemIndex == musicPage_curMusicIndex;
+  String curName = availableMusic_name[_musicItemIndex];
+  String subText = String(availableMusic_pageCount[_musicItemIndex]) + " pages - ";
+  if (availableMusic_pageCount[_musicItemIndex] == 1) subText = "1 page - ";
+  subText += learningStates[availableMusic_learningState[_musicItemIndex]];
 
   const int hMargin = homePage_margin;
   const int vMargin = homePage_margin * 3;
   const int maxWidth = display.width() / horizontalListItems;
-  const int maxHeight = 225 + 2 * vMargin;
+  const int maxHeight = (display.height() - homePage_headerHeight - 40) / verticalListItems;
+
   const int width = maxWidth - hMargin * 2;
   const int height = maxHeight - vMargin * 2;
   const int previewMargin = 10;
@@ -362,7 +474,7 @@ void drawMusicPreviewPanel(int _listIndex, int _verticalListIndex, int _musicIte
   display.setFont();
   if (selected) {
     display.setTextColor(GxEPD_WHITE);
-  } else display.setTextColor(GxEPD_BLACK);;
+  } else display.setTextColor(GxEPD_BLACK);
 
   int16_t tbx, tby; uint16_t tbw, tbh;
   display.getTextBounds(curName, 0, 0, &tbx, &tby, &tbw, &tbh);
@@ -378,7 +490,11 @@ void drawMusicPreviewPanel(int _listIndex, int _verticalListIndex, int _musicIte
 
 
 
+
+
+
 void openPage(UIPage page) {
+  curPage = page;
   if (page == HOME)
   {
     Serial.println("open HOME");

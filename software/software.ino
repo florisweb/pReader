@@ -17,6 +17,10 @@ const String deviceKey = "";
 
 connectionManager ConnectionManager;
 
+const int nextButtonPin = 19;
+const int prevButtonPin = 2;
+const int okButtonPin = 15;
+
 const int displayResetPin = 16;
 GxEPD2_BW < GxEPD2_1330_GDEM133T91, GxEPD2_1330_GDEM133T91::HEIGHT / 2 > // /2 makes it two pages
 display(GxEPD2_1330_GDEM133T91(/*CS=*/ 5, /*DC=*/ 17, /*RST=*/ displayResetPin, /*BUSY=*/ 4)); // GDEM133T91 960x680, SSD1677, (FPC-7701 REV.B)
@@ -208,6 +212,11 @@ void setup() {
   display.setFullWindow();
   display.fillScreen(GxEPD_WHITE);
 
+
+  pinMode(nextButtonPin, INPUT);
+  pinMode(prevButtonPin, INPUT);
+  pinMode(okButtonPin, INPUT);
+
   Serial.println("Setting up WiFi...");
 
   ConnectionManager.defineEventDocs("[]");
@@ -220,9 +229,33 @@ void setup() {
   ConnectionManager.setup(ssid, password, deviceId, deviceKey, &onMessage);
 }
 
+
+bool prevNextButtonState = false;
+bool prevPrevButtonState = false;
+bool prevOkButtonState = false;
 void loop() {
   ConnectionManager.loop();
 
+  bool nextButtonState = digitalRead(nextButtonPin);
+  bool prevButtonState = digitalRead(prevButtonPin);
+  bool okButtonState = digitalRead(okButtonPin);
+
+  if (nextButtonState && nextButtonState != prevNextButtonState)
+  {
+    next();
+  } else if (prevButtonState && prevButtonState != prevPrevButtonState)
+  {
+    prev();
+  } else if (okButtonState && okButtonState != prevOkButtonState)
+  {
+    ok();
+  }
+  
+  prevNextButtonState = nextButtonState;
+  prevPrevButtonState = prevButtonState;
+  prevOkButtonState = okButtonState;
+
+  
   if (Serial.available())
   {
     String ch = Serial.readStringUntil('\n'); // Read until newline
@@ -340,7 +373,7 @@ void homePage_selectMusicItem(int musicItemIndex) {
   Serial.print(musicItemIndex);
   Serial.print(" - prev: ");
   Serial.println(musicPage_curMusicIndex);
-//  if (musicItemIndex == musicPage_curMusicIndex) return;
+  //  if (musicItemIndex == musicPage_curMusicIndex) return;
   int prevIndex = musicPage_curMusicIndex;
   musicPage_curMusicIndex = musicItemIndex;
 

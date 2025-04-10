@@ -259,11 +259,10 @@ void loop() {
 void next() {
   if (curPage == HOME)
   {
-    homePage_selectMusicItem(musicPage_curMusicIndex + 1);
     if (musicPage_curMusicIndex >= availableMusicCount - 1)
     {
       homePage_selectMusicItem(0);
-    }
+    } else homePage_selectMusicItem(musicPage_curMusicIndex + 1);
   } else {
     musicPage_curPageIndex++;
     if (musicPage_curPageIndex >= availableMusic_pageCount[musicPage_curMusicIndex])
@@ -277,11 +276,10 @@ void next() {
 void prev() {
   if (curPage == HOME)
   {
-    homePage_selectMusicItem(musicPage_curMusicIndex - 1);
     if (musicPage_curMusicIndex <= 0)
     {
       homePage_selectMusicItem(availableMusicCount - 1);
-    }
+    } else homePage_selectMusicItem(musicPage_curMusicIndex - 1);
   } else {
     musicPage_curPageIndex--;
     if (musicPage_curPageIndex < 0)
@@ -296,6 +294,7 @@ void ok() {
   if (curPage == HOME)
   {
     if (musicPage_curMusicIndex == -1) return;
+    musicPage_curPageIndex = 0;
     openMusicPage(musicPage_curMusicIndex);
   } else {
     openPage(HOME);
@@ -376,10 +375,6 @@ void homePage_selectMusicItem(int musicItemIndex) {
 
   drawHomePageHeader();
   drawHeaders();
-  drawHomePagePanels();
-  display.display(true);
-
-  delay(300);
   drawHomePagePanels();
   display.display(true);
   //

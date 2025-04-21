@@ -21,8 +21,6 @@ TButtonPressableWidth = 1.5;
 
 
 
-//translate([0, 5, (height - topThickness) / 2 + topThickness - (buttonHeight + 2 *buttonHoleMargin) / 2])
-
 buttonSet();
 translate([0, 20, 0])
 buttonSet();

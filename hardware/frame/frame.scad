@@ -2,7 +2,7 @@
 $fn=25;
 
 screwRadius = 3.7/2;
-screwRadiusM3 = 1.55;
+screwRadiusM3 = 1.45; // The M3x10mm screws
 wallThickness = 1.5;
 topThickness = 0.7;
 bottomThickness = 1;
@@ -102,7 +102,7 @@ module backHalf() {
          
         
         translate([
-            width / 2 + 26.5, depth / 2 - 25, bottomThickness]) {
+            width / 2 + 26.5, depth / 2 - 25, bottomThickness - 0.15]) {
             linear_extrude(.15)
             scale([.14, .14, 1])
             rotate([0, 180, 0])

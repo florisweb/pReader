@@ -1,0 +1,26 @@
+Wiring
+
+3.3V: Screen, buttons, SSD
+GND: Screen, buttons, SSD
+
+
+Screen
+CS: 5
+MOSI: 23
+CLK: 18
+
+
+SSD-Storage
+CS: 5	-> ??
+MOSI: 23
+MISO: 19
+CLK: 18
+
+
+Buttons
+Next.read: 21
+OK.read: 15
+Prev.read: 27
+
+
+Internal LED: 2

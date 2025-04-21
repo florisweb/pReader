@@ -62,8 +62,8 @@ difference()
         backHalf();
     }
     
-//    translate([-10, depth / 2, -50]) cube([1000, depth / 2 + 10, 1000]);
-    translate([-10, -10, -50]) cube([1000, depth / 2 + 10, 1000]);
+    translate([-10, depth / 2, -50]) cube([1000, depth / 2 + 10, 1000]);
+//    translate([-10, -10, -50]) cube([1000, depth / 2 + 10, 1000]);
 }
 
 
@@ -75,6 +75,9 @@ module backHalf() {
         cylinder(r=screwRadiusM3, h=20);
         
         translate([width - 6.5, 5.5, 0])
+        cylinder(r=screwRadiusM3, h=20);
+        
+        translate([width / 2, 5.5, 0])
         cylinder(r=screwRadiusM3, h=20);
         
         translate([4, depth / 2 - 5, 0])
@@ -124,11 +127,22 @@ module backHalf() {
        backConnector();
     }
     
+    // Blocks to keep the screen pinned down
     translate([0, depth - 10 - (screenMargin+wallThickness), -(height - screenHeight)])
     {
         translate([10, 0, 0])
         cube([10, 10, height - screenHeight]);
         translate([width/2 - 5, 0, 0])
+        cube([10, 10, height - screenHeight]);
+        translate([width - 10 - extraSideWidth - 12, 0, 0])
+        cube([10, 10, height - screenHeight]);
+    }
+    
+    translate([0, screenMargin+wallThickness, -(height - screenHeight)])
+    {
+        translate([10, 0, 0])
+        cube([10, 10, height - screenHeight]);
+        translate([width/2 + 6, 0, 0])
         cube([10, 10, height - screenHeight]);
         translate([width - 10 - extraSideWidth - 12, 0, 0])
         cube([10, 10, height - screenHeight]);

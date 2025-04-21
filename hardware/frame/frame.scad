@@ -57,9 +57,9 @@ mirror([1, 0, 0])
 difference() 
 {
     union() {
-        frontHalf();
-//        translate([0, 0, height])
-//        backHalf();
+//        frontHalf();
+        translate([0, 0, height])
+        backHalf();
     }
     
 //    translate([-10, depth / 2, -50]) cube([1000, depth / 2 + 10, 1000]);
@@ -84,9 +84,33 @@ module backHalf() {
         cylinder(r=screwRadiusM3, h=20);
         
         
+        translate([4, depth / 2 + 5, 0])
+        cylinder(r=screwRadiusM3, h=20);
+        
+        translate([width - 6.5, depth / 2 + 5, 0])
+        cylinder(r=screwRadiusM3, h=20);
+        
+        
         translate([width - 28 - extraSideWidth, depth - 4, 0])
         cylinder(r=screwRadiusM3, h=20);
+        
+        translate([width - 6.5, depth - 57.5, 0])
+        cylinder(r=screwRadiusM3, h=20);
+        
+        translate([4, depth - 5, 0])
+        cylinder(r=screwRadiusM3, h=20);
+         
+        
+        translate([
+            width / 2 + 26.5, depth / 2 - 25, bottomThickness]) {
+            linear_extrude(.15)
+            scale([.14, .14, 1])
+            rotate([0, 180, 0])
+            import("/Library/WebServer/Documents/git/AutoHomeProjects/pReader/hardware/frame/readerLogo.svg");
+        }
     }
+    
+    
     
     translate([screenMargin+wallThickness + 7, 0, 0]) {
        backConnector();
@@ -96,7 +120,7 @@ module backHalf() {
        backConnector();
     }
     
-    translate([width - (screenMargin+wallThickness + 50) - backConnWidth, 0, 0]) {
+    translate([width - (screenMargin+wallThickness + 40) - backConnWidth, 0, 0]) {
        backConnector();
     }
     

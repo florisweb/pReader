@@ -53,3 +53,29 @@ export async function removeFile(_path) {
         });
 	});
 }
+
+const E_NotFound = Symbol('404 Not Found');
+export async function sendRequest(_url, _postParams = null, _isJSON = true) {
+	let headers = new Headers();
+	headers.append('pragma', 'no-cache');
+	headers.append('cache-control', 'no-cache');
+	headers.append('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
+
+	let response = await fetch(_url, {
+    	method: 'POST',
+	    headers: headers,
+	    body: _postParams,
+	});
+
+	if (response.status === 404) return E_NotFound
+	let result = await response.text();
+	if (!_isJSON) return result;
+	let json;
+	try {
+		json = JSON.parse(result);
+	} catch (e) {
+		console.log('Error while parsing json', e, result);
+		return result; 
+	}
+	return json;
+}

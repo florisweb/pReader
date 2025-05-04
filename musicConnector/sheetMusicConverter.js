@@ -1,15 +1,17 @@
-let pdfFileName = 'Cramer Etude Nr 1'
-let pdfFilePath = `./${pdfFileName}.pdf`;
+
 import { promises as fs } from "node:fs";
 import { pdf } from "pdf-to-img";
-
 import { Jimp } from "jimp";
 
-
-
-
-
-
+export async function storePDFAsBase64Files(_pdfPath, _outPath) {
+  let counter = 0;
+  const document = await pdf(_pdfPath, { scale: 1.15 });
+  for await (const image of document) {
+    await storeImgAsBase64(image, `${_outPath}_[${counter}]`);
+    counter++;
+  }
+  return counter;
+}
 
 async function storeImgAsBase64(_imgBuffer, _name) {
   const image = await Jimp.fromBuffer(_imgBuffer);
@@ -40,25 +42,4 @@ async function storeImgAsBase64(_imgBuffer, _name) {
   let buffer = Buffer.from(bitMapOut);
   let encoded = buffer.toString('base64');
   fs.writeFile(`${_name}.base64`, encoded);
-}
-
-export async function storePDF(_pdfPath, _outPath) {
-  let counter = 0;
-  const document = await pdf(_pdfPath, { scale: 1.15 });
-  for await (const image of document) {
-    await storeImgAsBase64(image, `${_outPath}_[${counter}]`);
-    // await fs.writeFile(`${pdfFileName}_[${counter}].png`, image);
-    counter++;
-  }
-}
-
-
-async function main() {
-  let counter = 0;
-  const document = await pdf(pdfFilePath, { scale: 1.15 });
-  for await (const image of document) {
-    await storeImgAsBase64(image, `${pdfFileName}_[${counter}]`);
-    // await fs.writeFile(`${pdfFileName}_[${counter}].png`, image);
-    counter++;
-  }
 }

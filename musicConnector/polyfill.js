@@ -44,3 +44,12 @@ export async function writeFile(_path, _content) {
         });
 	});
 }
+
+export async function removeFile(_path) { 
+	return new Promise((resolve, error) => {
+        fs.rm(_path, (err) => {
+            if (err) return error(err);
+            resolve(true);
+        });
+	});
+}

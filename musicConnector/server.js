@@ -1,5 +1,7 @@
 import fetch from 'node-fetch';
-import { readFile, writeFile } from './polyfill.js';
+import { readFile, writeFile, removeFile } from './polyfill.js';
+import { readdir } from 'node:fs/promises'
+
 import { storePDF } from './sheetMusicConverter.js';
 
 let Config = await readFile('./config.json');
@@ -47,29 +49,44 @@ async function sync() {
 	let newItems = items.filter(item => !curMusicItemState.map(r => r.id).includes(item.id));
 	let lostItems = curMusicItemState.filter(item => !items.map(r => r.id).includes(item.id));
 
+
 	for (let item of lostItems) await onItemLose(item);
 	
+	let modifiedItem = false;	
 	for (let item of curMusicItemState) // Shared items
 	{
-		
-
+		let newItem = items.find(_item => _item.id === item.id);
+		if (JSON.stringify(item) === JSON.stringify(newItem)) continue;
+		modifiedItem = true;
+		if (newItem.sheetMusicSource === item.sheetMusicSource)
+		{
+			curMusicItemState[curMusicItemState.findIndex(_item => _item.id === item.id)] = newItem;
+		} else {
+			// Remove and re-download: new 
+			console.log('redownload:', item.title);
+			await onItemLose(item);
+			await onItemAdd(item);
+		}
 	}
 
 	for (let item of newItems) await onItemAdd(item);
 
-	console.log('changes', 'new', newItems.map(r => r.title), 'lost', lostItems.map(r => r.title), 'prev', curMusicItemState.map(r => r.title), 'in', items.map(r => r.title));
+	// console.log('changes', 'new', newItems.map(r => r.title), 'lost', lostItems.map(r => r.title), 'prev', curMusicItemState.map(r => r.title), 'in', items.map(r => r.title));
 
-	setTimeout(sync, Config.updateFrequency)
+	setTimeout(sync, Config.updateFrequency);
+	if (!modifiedItem && newItems.length === 0 && lostItems.length === 0) return;
+	console.log('changes. Update needed!');
 }
 sync();
 
-function onItemLose(_item) {
+async function onItemLose(_item) {
+	console.log('remove:', _item.title);
 	curMusicItemState = curMusicItemState.filter(r => r.id !== _item.id);
-
+	await removeFilesByMusicId(_item.id);
 }
 async function onItemAdd(_item) {
+	console.log('download:', _item.title);
 	curMusicItemState.push(_item);
-	console.log('download');
 	await downloadSheetMusic(_item.id)
 }
 
@@ -88,12 +105,6 @@ async function downloadSheetMusic(_musicItemId) {
 	    body: `APIKey=${Config.MusicAPIKey}`,
 	});
 	let buffer = await response.buffer();
-	// let text = await response.text();
-	// console.log(text);
-	// console.log(Config.MusicPath + '/database/getMusicFile.php?type=sheetMusic&id=' + _musicItemId);
-	// let result = await sendRequest(Config.MusicPath + '/database/getMusicFile.php?type=sheetMusic&id=' + _musicItemId, `APIKey=${Config.MusicAPIKey}`, false);
-	// if (result?.error) return console.log('Error while downloading:', result);
-	// if (result === E_NotFound) return console.log('Error while downloading: 404');
 	try {
 		let path = `${fileCachePath}/${_musicItemId}`;
 		await writeFile(path + '.pdf', buffer);
@@ -101,24 +112,13 @@ async function downloadSheetMusic(_musicItemId) {
 	} catch (e) {
 		console.log('error', e)
 	}
-	
 }
 
-
-
-// const fileCachePath = `./cachedSheetMusic`;
-// async function downloadSheetMusic(_musicItemId) {
-
-
-
-
-// 	console.log(Config.MusicPath + '/database/getMusicFile.php?type=sheetMusic&id=' + _musicItemId);
-// 	let result = await sendRequest(Config.MusicPath + '/database/getMusicFile.php?type=sheetMusic&id=' + _musicItemId, `APIKey=${Config.MusicAPIKey}`, false);
-// 	if (result?.error) return console.log('Error while downloading:', result);
-// 	if (result === E_NotFound) return console.log('Error while downloading: 404');
-
-// 	let path = `${fileCachePath}/${_musicItemId}`;
-// 	await writeFile(path + '.pdf', result);
-// 	await storePDF(path + '.pdf', path);
-// }
-
+async function removeFilesByMusicId(_id) {
+	let files = await readdir(fileCachePath);
+	for (let file of files)
+	{
+		if (!file.includes(_id + '_')) continue;
+		removeFile(fileCachePath + '/' + file);
+	}
+}

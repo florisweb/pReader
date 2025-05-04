@@ -37,9 +37,6 @@ async function storeImgAsBase64(_imgBuffer, _name) {
     }
   }
 
-  
-  console.log('img', bitMapOut);
-
   let buffer = Buffer.from(bitMapOut);
   let encoded = buffer.toString('base64');
   fs.writeFile(`${_name}.base64`, encoded);
@@ -65,15 +62,3 @@ async function main() {
     counter++;
   }
 }
-// main();
-
-// (async () => {
-//   let d = await fs.readFile('./cross.png');
-//   console.log(d);
-//   await storeImgAsBase64(d, `cross`);
-// })();
-
-// // (async () => {
-// //   const image = await Jimp.read('./bitmap6.png');
-// //   await storeImgAsBase64(await image.getBuffer('image/bmp'), `test2`);
-// // })();

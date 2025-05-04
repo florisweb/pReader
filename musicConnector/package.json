@@ -1,0 +1,14 @@
+{
+  "name": "PReader.MusicConnector",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "jimp": "^1.6.0",
+    "node-fetch": "^3.3.2",
+    "pdf-to-img": "^4.4.0"
+  },
+  "type": "module",
+  "scripts": {
+    "server": "node server.js"
+  }
+}

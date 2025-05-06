@@ -7,6 +7,8 @@ extern "C" {
 #include "crypto/base64.h"
 }
 #include <Arduino.h>
+#include <SPI.h>
+#include <SD.h>
 
 
 const char* ssid = "";
@@ -16,20 +18,21 @@ const String deviceKey = "";
 
 connectionManager ConnectionManager;
 
-const int nextButtonPin = 21;
-const int prevButtonPin = 27;
+const int nextButtonPin = 27;
+const int prevButtonPin = 21;
 const int okButtonPin = 15;
 const int BlueLEDPin = 2;
 
-const int DisplayCS = 5; // SPI chip select
-const int SSDCS = 27; // SPI chip select
+const int DisplayCS = 17; // SPI chip select
 
+
+const int SSDCS = 26; // SPI chip select
+File file;
 
 
 const int displayResetPin = 16;
 GxEPD2_BW < GxEPD2_1330_GDEM133T91, GxEPD2_1330_GDEM133T91::HEIGHT / 2 > // /2 makes it two pages
-display(GxEPD2_1330_GDEM133T91(/*CS=*/ DisplayCS, /*DC=*/ 17, /*RST=*/ displayResetPin, /*BUSY=*/ 4)); // GDEM133T91 960x680, SSD1677, (FPC-7701 REV.B)
-
+display(GxEPD2_1330_GDEM133T91(/*CS=*/ DisplayCS, /*DC=*/ 5, /*RST=*/ displayResetPin, /*BUSY=*/ 4)); // GDEM133T91 960x680, SSD1677, (FPC-7701 REV.B)
 
 
 
@@ -102,6 +105,22 @@ void onImageSectionResponse(DynamicJsonDocument message) {
   String imageData = message["response"]["data"];
   curImageBufferIndex = startIndex + imageSectionLength;
 
+  String musicFileName = "/" + (String)musicPage_curMusicIndex + "_[" + (String)musicPage_curPageIndex + "].txt";
+  file = SD.open(musicFileName, FILE_WRITE);
+  if (file) {
+    Serial.println("[Data] Moving to end.");
+    file.seek(file.size());
+    Serial.print("writing to ");
+    Serial.println(musicFileName);
+    file.print(imageData);
+    file.close();
+    Serial.println("done.");
+  } else {
+    // if the file didn't open, print an error:
+    Serial.print("error opening");
+    Serial.println(musicFileName);
+  }
+
   if (curImageBufferIndex < remoteImageLength)
   {
     ConnectionManager.sendRequest(
@@ -111,41 +130,17 @@ void onImageSectionResponse(DynamicJsonDocument message) {
     );
   } else onImageFullyDrawn();
 
-  const char * text = imageData.c_str();
-  size_t outputLength;
-  uint8_t* decoded = base64_decode((const unsigned char *)text, strlen(text), &outputLength);
-  int rows = floor(outputLength * 8 / imageWidth);
-
-  int yStart = summedYPos;
-  display.drawImage(decoded, 0, yStart, imageWidth, rows, true);
-  free(decoded);
-  summedYPos += rows;
-
-
-  //  display.setPartialWindow(0, 0, display.width(), 100);
-  //  Serial.println("set text");
-  //  display.setTextColor(GxEPD_BLACK);
-  //  String curName = availableMusic_name[musicPage_curMusicIndex];
-  //  String curPage = String(musicPage_curPageIndex + 1) +  "/" + String(availableMusic_pageCount[musicPage_curMusicIndex]);
   //
-  //  int16_t tbx, tby; uint16_t tbw, tbh;
-  //  display.getTextBounds(curName, 0, 0, &tbx, &tby, &tbw, &tbh);
   //
-  //  uint16_t x = ((display.width() - tbw) / 2) - tbx;
-  //  uint16_t y = tbh / 2 - tby;
+  //  const char * text = imageData.c_str();
+  //  size_t outputLength;
+  //  uint8_t* decoded = base64_decode((const unsigned char *)text, strlen(text), &outputLength);
+  //  int rows = floor(outputLength * 8 / imageWidth);
   //
-  //  display.setCursor(x, y);
-  //  display.print(curName);
-  //
-  //  display.getTextBounds(curPage, 0, 0, &tbx, &tby, &tbw, &tbh);
-  //
-  //  x = ((display.width() - tbw) / 2) - tbx;
-  //  y = tbh * 3 / 2 - tby;
-  //
-  //  display.setCursor(x, y);
-  //  display.print(curPage);
-  //  //  display.display(true);
-  //  display.setFullWindow();
+  //  int yStart = summedYPos;
+  //  display.drawImage(decoded, 0, yStart, imageWidth, rows, true);
+  //  free(decoded);
+  //  summedYPos += rows;
 }
 
 void onImageFullyDrawn() {
@@ -195,20 +190,32 @@ void onResponse(DynamicJsonDocument message) {
 
 void setup() {
   Serial.begin(115200);
+
+  Serial.println("--------------------------------------------------------------------------------------------------------------------------------------------------------");
+  Serial.println("");
   Serial.println("Setting up display...");
+
   pinMode(displayResetPin, OUTPUT);
   display.init();
   display.setRotation(1);
   display.setFullWindow();
   display.fillScreen(GxEPD_WHITE);
 
-
   pinMode(nextButtonPin, INPUT);
   pinMode(prevButtonPin, INPUT);
   pinMode(okButtonPin, INPUT);
   pinMode(BlueLEDPin, OUTPUT);
+  Serial.println("Initializing SD card...");
+
+  if (!SD.begin(SSDCS)) {
+    Serial.println("SD initialization failed!");
+    while (1);
+  }
+
+  Serial.println("SD initialization done.");
 
   Serial.println("Setting up WiFi...");
+  delay(200);
 
   ConnectionManager.defineEventDocs("[]");
   ConnectionManager.defineAccessPointDocs("["
@@ -285,6 +292,20 @@ void loop() {
       prev();
     } else if (ch == "ok") {
       ok();
+    } else if (ch == "lm") {
+      loadMusicImageFromSSD();
+    } else if (ch == "readBuff") {
+      Serial.println("buff !== 255:");
+      for (int i = 0; i < 40800; i++) // 40800
+      {
+        int val = (int)display._buffer[i];
+        if (val == 255) continue;
+        Serial.print((String)val + ",");
+      }
+    } else if (ch == "re") {
+      display.epd2.refresh(false);
+    } else  if (ch == "RE") {
+      display.epd2.refresh(true);
     }
   }
 }
@@ -339,12 +360,60 @@ void openMusicPage(int _curMusicIndex) {
   musicPage_curMusicIndex = min(_curMusicIndex, availableMusicCount - 1);
   openPage(MUSIC);
 }
+
+
 void loadMusicImage() {
+  String musicFileName = "/" + (String)musicPage_curMusicIndex + "_[" + (String)musicPage_curPageIndex + "].txt";
+  file = SD.open(musicFileName, FILE_WRITE);
+  if (file) {
+    Serial.print("Creating/clearing ");
+    Serial.print(musicFileName);
+    file.print("");
+    file.close();
+    Serial.println("-> done.");
+  } else {
+    Serial.print("error opening");
+    Serial.println(musicFileName);
+  }
+
   ConnectionManager.sendRequest(
     String("requestMusicImage"),
     String("{\"musicName\":\"" + String(availableMusic_name[musicPage_curMusicIndex]) + "\", \"pageIndex\":" + String(musicPage_curPageIndex) + "}"),
     &onMusicImageRequestResponse
   );
+}
+
+void loadMusicImageFromSSD() {
+  String musicFileName = "/" + (String)musicPage_curMusicIndex + "_[" + (String)musicPage_curPageIndex + "].txt";
+  file = SD.open(musicFileName);
+  if (!file) {
+    Serial.print("error opening");
+    Serial.println(musicFileName);
+    return;
+  }
+  int imageWidth = 968;
+  int summedYPos = 0;
+
+  const int blockLen = imageWidth * 3; // 7
+  char text[blockLen];
+  while (file.available()) {
+    int bytesRead = file.readBytes(text, blockLen); // Read bytes into buffer
+    size_t outputLength;
+    uint8_t* decoded = base64_decode((const unsigned char *)text, bytesRead, &outputLength);
+    for (int i = 0; i < outputLength; i++)
+    {
+      decoded[i] = ~decoded[i];
+    }
+    int rows = floor(outputLength * 8 / imageWidth);
+    int yStart = summedYPos;
+
+    display.epd2.writeImage(decoded, 0, yStart, imageWidth, rows);
+    free(decoded);
+    summedYPos += rows;
+  }
+
+  file.close();
+  display.epd2.refresh(true);
 }
 
 

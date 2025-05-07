@@ -104,8 +104,4 @@ export class PReaderClient extends BaseClient {
                 if (_message.isRequestMessage) return SocketServer.handleRequestImageSection(_message);
         }
     }
-
-    #handleRequests(_message) {
-        
-    }
 }

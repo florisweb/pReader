@@ -46,7 +46,7 @@ int musicPage_curPageIndex = 0;
 UIPage curPage = HOME;
 UIPage prevPage = HOME;
 
-const String learningStates[] = {"Learning", "Wishlist", "Finished"};
+const String learningStates[] = {"Learning", "Wishlist", "On Hold", "Finished", "Canceled"};
 
 
 int availableMusicCount = 0;
@@ -489,7 +489,7 @@ void homePage_selectMusicItem(int musicItemIndex) {
   int preListIndex = 0;
   for (int i = 0; i < availableMusicCount; i++)
   {
-    int learningState = availableMusic_learningState[i];
+    int learningState = min(availableMusic_learningState[i], 2);
     if (i == prevIndex)
     {
       preLearningState = learningState;
@@ -541,8 +541,8 @@ void drawHomePagePanels() {
   int learningStateCounts[] = {0, 0, 0};
   for (int i = 0; i < availableMusicCount; i++)
   {
-    int learningState = availableMusic_learningState[i];
-    drawMusicPreviewPanel(learningStateCounts[learningState], availableMusic_learningState[i], i);
+    int learningState = min(availableMusic_learningState[i], 2);
+    drawMusicPreviewPanel(learningStateCounts[learningState], learningState, i);
     learningStateCounts[learningState]++;
   }
 }
@@ -555,6 +555,7 @@ void drawHeaders() {
     display.setFont(&FreeSansOblique9pt7b);
     display.setTextColor(GxEPD_BLACK);
     String headerTitle = learningStates[i];
+    if (i == 2) headerTitle = "Finished & Rest";
 
     int16_t tbx, tby; uint16_t tbw, tbh;
     display.getTextBounds(headerTitle, 0, 0, &tbx, &tby, &tbw, &tbh);

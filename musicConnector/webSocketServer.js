@@ -101,7 +101,9 @@ function statusToLearningState(_status) {
 	switch (_status) {
 		case "learning": return 0;
 		case "wishList": return 1;
-		default: return 2;
+		case "onHold": return 2;
+		case "finished": return 3;
+		default: return 4;
 	}
 }
 

@@ -93,7 +93,7 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
 
         if (isResponse)
         {
-          for (int i = 0; i < sizeof(requestIdList)/sizeof(int); i++)
+          for (int i = 0; i < sizeof(requestIdList) / sizeof(int); i++)
           {
             if (requestIdList[i] != requestId) continue;
             requestCallbackList[i](doc);
@@ -161,11 +161,28 @@ void connectionManager::setup(const char* _ssid, const char* _password, const St
   }
   Serial.println("-> Connected!");
 
+  setServerLocation(serverIP, serverPort);
+}
+
+void connectionManager::setServerLocation(String _ip, int _port) {
+  serverIP = _ip;
+  serverPort = _port;
+  
+  if (webSocket.isConnected()) {
+    Serial.print("Changed serverLoc, was already connected, disconnecting...");
+    webSocket.disconnect();
+  }
+ 
+  Serial.print("Connecting to WS server at ");
+  Serial.print(serverIP);
+  Serial.print(":");
+  Serial.println(serverPort);
+
+
   webSocket.begin(serverIP, serverPort, "/");
   webSocket.onEvent(webSocketEvent);
   webSocket.setReconnectInterval(5000); // try every 5000 again if connection has failed
 }
-
 
 
 void connectionManager::send(String _string) {
@@ -183,7 +200,7 @@ void connectionManager::sendRequest(String _type, String _data, void _onRespond(
   dataString.concat("}");
 
   int curIndex = -1;
-  for (int i = 0; i < sizeof(requestIdList)/sizeof(int); i++)
+  for (int i = 0; i < sizeof(requestIdList) / sizeof(int); i++)
   {
     if (requestIdList[i] != 0) continue;
     curIndex = i;
@@ -197,7 +214,7 @@ void connectionManager::sendRequest(String _type, String _data, void _onRespond(
 
   Serial.print("Found index:");
   Serial.println(curIndex);
-  
+
   requestIdList[curIndex] = requestId;
   requestCallbackList[curIndex] = _onRespond;
   Serial.print("Send request: ");

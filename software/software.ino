@@ -38,7 +38,8 @@ display(GxEPD2_1330_GDEM133T91(/*CS=*/ DisplayCS, /*DC=*/ 5, /*RST=*/ displayRes
 
 enum UIPage {
   HOME,
-  MUSIC
+  MUSIC,
+  UPDATING_CATALOGUE
 };
 int musicPage_curMusicIndex = 0;
 int musicPage_curPageIndex = 0;
@@ -52,17 +53,46 @@ String availableMusic_name[20];
 int availableMusic_pageCount[20];
 int availableMusic_learningState[20];
 
+const int musicImageWidth = 968;
 
-
-
+// Download section
+int curDownloadMusicIndex = 0;
+int curDownloadPageIndex = 0;
 int musicImageRequestId = 0;
 int remoteImageLength = 0;
-int imageWidth = 0;
+
 int curImageBufferIndex = 0;
 const int rowsPerSection = 90;
 int imageSectionLength = 0;
-int summedYPos = 0;
+bool openMusicPageOnDownloadFinish = false;
 
+void downloadMusicImage(int musicIndex, int pageIndex) {
+  curDownloadMusicIndex = musicIndex;
+  curDownloadPageIndex = pageIndex;
+  Serial.print("Downloading: ");
+  Serial.print(curDownloadMusicIndex);
+  Serial.print(" - ");
+  Serial.println(curDownloadPageIndex);
+
+  String musicFileName = "/" + (String)curDownloadMusicIndex + "_[" + (String)curDownloadPageIndex + "].txt";
+  file = SD.open(musicFileName, FILE_WRITE);
+  if (file) {
+    Serial.print("Creating/clearing ");
+    Serial.print(musicFileName);
+    file.print("");
+    file.close();
+    Serial.println("-> done.");
+  } else {
+    Serial.print("error opening");
+    Serial.println(musicFileName);
+  }
+
+  ConnectionManager.sendRequest(
+    String("requestMusicImage"),
+    String("{\"musicName\":\"" + String(availableMusic_name[curDownloadMusicIndex]) + "\", \"pageIndex\":" + String(curDownloadPageIndex) + "}"),
+    &onMusicImageRequestResponse
+  );
+}
 
 void onMusicImageRequestResponse(DynamicJsonDocument message) {
   String error = message["response"]["error"];
@@ -74,13 +104,10 @@ void onMusicImageRequestResponse(DynamicJsonDocument message) {
   }
 
   remoteImageLength = message["response"]["dataLength"];
-  imageWidth = message["response"]["imageWidth"];
+  int imageWidth = message["response"]["imageWidth"];
   curImageBufferIndex = 0;
-  summedYPos = 0;
   musicImageRequestId = message["response"]["imageRequestId"];
   imageSectionLength = imageWidth / 8 * rowsPerSection;
-  Serial.print("imgSecLen: ");
-  Serial.println(imageSectionLength);
 
   Serial.print("Got imageAvailable message. DataLength: ");
   Serial.print(remoteImageLength);
@@ -98,6 +125,7 @@ void onImageSectionResponse(DynamicJsonDocument message) {
   {
     Serial.print("Error on requesting image section:" );
     Serial.println(error);
+    // TODO: REMOVE FILE AND STOP DOWNLOADING / RESTART FROM SCRATCH
     return;
   }
 
@@ -105,20 +133,17 @@ void onImageSectionResponse(DynamicJsonDocument message) {
   String imageData = message["response"]["data"];
   curImageBufferIndex = startIndex + imageSectionLength;
 
-  String musicFileName = "/" + (String)musicPage_curMusicIndex + "_[" + (String)musicPage_curPageIndex + "].txt";
+  String musicFileName = "/" + (String)curDownloadMusicIndex + "_[" + (String)curDownloadPageIndex + "].txt";
   file = SD.open(musicFileName, FILE_WRITE);
   if (file) {
-    Serial.println("[Data] Moving to end.");
     file.seek(file.size());
-    Serial.print("writing to ");
-    Serial.println(musicFileName);
     file.print(imageData);
     file.close();
-    Serial.println("done.");
   } else {
     // if the file didn't open, print an error:
     Serial.print("error opening");
     Serial.println(musicFileName);
+    // TODO: REMOVE FILE AND STOP DOWNLOADING / RESTART FROM SCRATCH
   }
 
   if (curImageBufferIndex < remoteImageLength)
@@ -128,27 +153,43 @@ void onImageSectionResponse(DynamicJsonDocument message) {
       String("{\"startIndex\":" + String(curImageBufferIndex) + ", \"sectionLength\":" + String(imageSectionLength) + ", \"imageRequestId\": " + String(musicImageRequestId) + "}"),
       &onImageSectionResponse
     );
-  } else onImageFullyDrawn();
-
-  //
-  //
-  //  const char * text = imageData.c_str();
-  //  size_t outputLength;
-  //  uint8_t* decoded = base64_decode((const unsigned char *)text, strlen(text), &outputLength);
-  //  int rows = floor(outputLength * 8 / imageWidth);
-  //
-  //  int yStart = summedYPos;
-  //  display.drawImage(decoded, 0, yStart, imageWidth, rows, true);
-  //  free(decoded);
-  //  summedYPos += rows;
+  } else onDownloadFinish();
 }
 
-void onImageFullyDrawn() {
-  Serial.println("Finished fetching all parts.");
+void onDownloadFinish() {
+  Serial.println("Finished downloading!");
+  if (openMusicPageOnDownloadFinish)
+  {
+    openMusicPageOnDownloadFinish = false;
+    openPage(MUSIC);
+  }
+  downloadUndownloadedItems();
 }
 
 
 
+void downloadUndownloadedItems() {
+  for (int m = 0; m < availableMusicCount; m++)
+  {
+    int maxPages = availableMusic_pageCount[m];
+    for (int p = 0; p < maxPages; p++)
+    {
+      bool downloaded = musicImageDownloaded(m, p);
+      Serial.print("downloaded?:");
+      Serial.print(m);
+      Serial.print("_[");
+      Serial.print(p);
+      Serial.print("]: ");
+      Serial.println(downloaded);
+      if (downloaded) continue;
+      if (curPage != UPDATING_CATALOGUE) openPage(UPDATING_CATALOGUE);
+
+      downloadMusicImage(m, p);
+      return;
+    }
+  }
+  if (curPage != MUSIC) openPage(HOME);
+}
 
 
 
@@ -174,7 +215,7 @@ void onMessage(DynamicJsonDocument message) {
       availableMusic_name[i] = String(musicName);
       availableMusicCount = i + 1;
     }
-    if (curPage == HOME) openPage(HOME);
+    downloadUndownloadedItems();
   }
 }
 
@@ -191,7 +232,7 @@ void onResponse(DynamicJsonDocument message) {
 void setup() {
   Serial.begin(115200);
 
-  Serial.println("--------------------------------------------------------------------------------------------------------------------------------------------------------");
+  Serial.println("");
   Serial.println("");
   Serial.println("Setting up display...");
 
@@ -286,6 +327,8 @@ void loop() {
       openPage(MUSIC);
     } else if (ch == "h") {
       openPage(HOME);
+    } else if (ch == "up") {
+      openPage(UPDATING_CATALOGUE);
     } else if (ch == "next") {
       next();
     } else if (ch == "prev") {
@@ -293,7 +336,7 @@ void loop() {
     } else if (ch == "ok") {
       ok();
     } else if (ch == "lm") {
-      loadMusicImageFromSSD();
+      drawMusicImageFromSSD(musicPage_curMusicIndex, musicPage_curPageIndex);
     } else if (ch == "readBuff") {
       Serial.println("buff !== 255:");
       for (int i = 0; i < 40800; i++) // 40800
@@ -306,6 +349,11 @@ void loop() {
       display.epd2.refresh(false);
     } else  if (ch == "RE") {
       display.epd2.refresh(true);
+    } else if (ch == "down") {
+      downloadUndownloadedItems();
+    } else if (ch == "mem") {
+      Serial.print("Free mem: ");
+      Serial.println(ESP.getFreeHeap());
     }
   }
 }
@@ -317,12 +365,14 @@ void next() {
     {
       homePage_selectMusicItem(0);
     } else homePage_selectMusicItem(musicPage_curMusicIndex + 1);
-  } else {
+  } else if (curPage == MUSIC) {
     musicPage_curPageIndex++;
     if (musicPage_curPageIndex >= availableMusic_pageCount[musicPage_curMusicIndex])
     {
       musicPage_curPageIndex = 0;
     }
+    Serial.print("new pageIndex: ");
+    Serial.println(musicPage_curPageIndex);
     openPage(MUSIC);
   }
 }
@@ -334,7 +384,7 @@ void prev() {
     {
       homePage_selectMusicItem(availableMusicCount - 1);
     } else homePage_selectMusicItem(musicPage_curMusicIndex - 1);
-  } else {
+  } else if (curPage == MUSIC) {
     musicPage_curPageIndex--;
     if (musicPage_curPageIndex < 0)
     {
@@ -350,7 +400,7 @@ void ok() {
     if (musicPage_curMusicIndex == -1) return;
     musicPage_curPageIndex = 0;
     openMusicPage(musicPage_curMusicIndex);
-  } else {
+  } else if (curPage == MUSIC) {
     openPage(HOME);
   }
 }
@@ -362,63 +412,46 @@ void openMusicPage(int _curMusicIndex) {
 }
 
 
-void loadMusicImage() {
-  String musicFileName = "/" + (String)musicPage_curMusicIndex + "_[" + (String)musicPage_curPageIndex + "].txt";
-  file = SD.open(musicFileName, FILE_WRITE);
-  if (file) {
-    Serial.print("Creating/clearing ");
-    Serial.print(musicFileName);
-    file.print("");
-    file.close();
-    Serial.println("-> done.");
-  } else {
-    Serial.print("error opening");
-    Serial.println(musicFileName);
-  }
 
-  ConnectionManager.sendRequest(
-    String("requestMusicImage"),
-    String("{\"musicName\":\"" + String(availableMusic_name[musicPage_curMusicIndex]) + "\", \"pageIndex\":" + String(musicPage_curPageIndex) + "}"),
-    &onMusicImageRequestResponse
-  );
-}
 
-void loadMusicImageFromSSD() {
-  String musicFileName = "/" + (String)musicPage_curMusicIndex + "_[" + (String)musicPage_curPageIndex + "].txt";
+// ================ MUSICPAGE ================
+
+
+void drawMusicImageFromSSD(int musicIndex, int pageIndex) {
+  String musicFileName = "/" + (String)musicIndex + "_[" + (String)pageIndex + "].txt";
+  Serial.print("Start drawing: ");
+  Serial.println(musicFileName);
   file = SD.open(musicFileName);
   if (!file) {
     Serial.print("error opening");
     Serial.println(musicFileName);
     return;
   }
-  int imageWidth = 968;
-  int summedYPos = 0;
 
-  const int blockLen = imageWidth * 3; // 7
+  int summedYPos = 0;
+  const int blockLen = musicImageWidth * 5; // 7
   char text[blockLen];
   while (file.available()) {
     int bytesRead = file.readBytes(text, blockLen); // Read bytes into buffer
     size_t outputLength;
     uint8_t* decoded = base64_decode((const unsigned char *)text, bytesRead, &outputLength);
-    for (int i = 0; i < outputLength; i++)
-    {
-      decoded[i] = ~decoded[i];
-    }
-    int rows = floor(outputLength * 8 / imageWidth);
-    int yStart = summedYPos;
+    for (int i = 0; i < outputLength; i++) decoded[i] = ~decoded[i]; // Invert image color
 
-    display.epd2.writeImage(decoded, 0, yStart, imageWidth, rows);
+    int rows = floor(outputLength * 8 / musicImageWidth);
+    display.epd2.writeImage(decoded, 0, summedYPos, musicImageWidth, rows);
     free(decoded);
+    Serial.println(summedYPos);
     summedYPos += rows;
   }
 
   file.close();
-  display.epd2.refresh(true);
+  display.epd2.refresh(false); // FULL refresh
+  Serial.println("Finished drawing.");
 }
 
 
 
-
+// ================ HOMEPAGE ================
 const int homePage_headerHeight = 60;
 const int homePage_margin = 10;
 int horizontalListItems = 4;
@@ -576,6 +609,28 @@ void drawMusicPreviewPanel(int _listIndex, int _verticalListIndex, int _musicIte
 
 
 
+// ================ UPDATE PAGE ================
+void drawUpdatePage() {
+  display.firstPage();
+  do
+  {
+    display.fillScreen(GxEPD_WHITE);
+    display.setFont(&FreeSansOblique9pt7b);
+    display.setTextColor(GxEPD_BLACK);
+    String updateText = "Updating catalogue...";
+
+    int16_t tbx, tby; uint16_t tbw, tbh;
+    display.getTextBounds(updateText, 0, 0, &tbx, &tby, &tbw, &tbh);
+
+    uint16_t x = display.width() / 2 - tbw / 2 - tbx;
+    uint16_t y = display.height() / 2 - tbh / 2 - tbh;
+    display.setCursor(x, y);
+    display.print(updateText);
+  }
+  while (display.nextPage());
+}
+
+
 
 
 void openPage(UIPage page) {
@@ -587,6 +642,46 @@ void openPage(UIPage page) {
   } else if (page == MUSIC)
   {
     Serial.println("open MUSIC");
-    loadMusicImage();
+    bool downloaded = musicImageDownloaded(musicPage_curMusicIndex, musicPage_curPageIndex);
+    Serial.print("downloaded?:");
+    Serial.println(downloaded);
+    if (downloaded)
+    {
+      drawMusicImageFromSSD(musicPage_curMusicIndex, musicPage_curPageIndex);
+    } else {
+      Serial.println("Not downloaded, downloading now...");
+      downloadMusicImage(musicPage_curMusicIndex, musicPage_curPageIndex);
+      openMusicPageOnDownloadFinish = true;
+    }
+  } else if (page == UPDATING_CATALOGUE) {
+    Serial.println("open Update page");
+    drawUpdatePage();
   }
+}
+
+
+
+
+
+
+
+
+
+
+
+bool musicImageDownloaded(int musicIndex, int pageIndex) {
+  String musicFileName = "/" + (String)musicIndex + "_[" + (String)pageIndex + "].txt";
+  Serial.print("Exists ");
+  Serial.print(musicFileName);
+  Serial.print(": ");
+  Serial.print(SD.exists(musicFileName));
+  if (SD.exists(musicFileName) == 0) return false;
+
+  // Check if there is anything in the file
+  file = SD.open(musicFileName);
+  int fileSize = file.size();
+  file.close();
+  Serial.print(" size: ");
+  Serial.println(fileSize);
+  return fileSize > 0;
 }

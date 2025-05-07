@@ -22,7 +22,7 @@ class musicInterface {
 	}
 
 	async #fetchMusicItems() {
-		let result = await sendRequest(Config.MusicPath + '/database/getMusicItems.php', `APIKey=${Config.MusicAPIKey}`);
+		let result = await sendRequest(Config.path + '/database/getMusicItems.php', `APIKey=${Config.key}`);
 		if (typeof result === 'string') return false;
 		if (result.error) return console.log('Error while fetching music items:', result);
 
@@ -47,10 +47,21 @@ class musicInterface {
 
 		for (let item of newItems) await onItemAdd(item);
 
-		console.log('changes', 'new', newItems.map(r => r.title), 'lost', lostItems.map(r => r.title), 'prev', curMusicItemState.map(r => r.title), 'in', items.map(r => r.title));
+		// console.log('changes', 'new', newItems.map(r => r.title), 'lost', lostItems.map(r => r.title), 'prev', curMusicItemState.map(r => r.title), 'in', items.map(r => r.title));
 
 		if (!modifiedItem && newItems.length === 0 && lostItems.length === 0) return;
-		this.#onStateChange(curMusicItemState);
+		this.#onStateChange(curMusicItemState.filter(r => typeof r.pageCount === 'number')); // Only show items that have their pages downloaded
+	}
+
+	async getMusicImage(_musicId, _pageIndex) {
+		return new Promise((resolve) => {
+			let path = `${fileCachePath}/${_musicId}_[${_pageIndex}].base64`;
+			
+			readFile(path, false).then((_file) => resolve(_file), (_e) => {
+				console.log('error while reading', path, _e);
+				resolve(false);
+			});
+		});
 	}
 }
 
@@ -89,10 +100,10 @@ async function downloadSheetMusic(_musicItemId) {
 	headers.append('cache-control', 'no-cache');
 	headers.append('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
 
-	let response = await fetch(Config.MusicPath + '/database/getMusicFile.php?type=sheetMusic&id=' + _musicItemId, {
+	let response = await fetch(Config.path + '/database/getMusicFile.php?type=sheetMusic&id=' + _musicItemId, {
     	method: 'POST',
 	    headers: headers,
-	    body: `APIKey=${Config.MusicAPIKey}`,
+	    body: `APIKey=${Config.key}`,
 	});
 
 	let buffer = await response.buffer();

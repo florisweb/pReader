@@ -44,12 +44,14 @@ enum UIPage {
 int musicPage_curMusicIndex = 0;
 int musicPage_curPageIndex = 0;
 UIPage curPage = HOME;
+UIPage prevPage = HOME;
 
 const String learningStates[] = {"Learning", "Wishlist", "Finished"};
 
 
 int availableMusicCount = 0;
 String availableMusic_name[20];
+int availableMusic_itemId[20];
 int availableMusic_pageCount[20];
 int availableMusic_learningState[20];
 
@@ -74,7 +76,7 @@ void downloadMusicImage(int musicIndex, int pageIndex) {
   Serial.print(" - ");
   Serial.println(curDownloadPageIndex);
 
-  String musicFileName = "/" + (String)curDownloadMusicIndex + "_[" + (String)curDownloadPageIndex + "].txt";
+  String musicFileName = "/" + (String)availableMusic_itemId[curDownloadMusicIndex] + "_[" + (String)curDownloadPageIndex + "].txt";
   file = SD.open(musicFileName, FILE_WRITE);
   if (file) {
     Serial.print("Creating/clearing ");
@@ -89,7 +91,7 @@ void downloadMusicImage(int musicIndex, int pageIndex) {
 
   ConnectionManager.sendRequest(
     String("requestMusicImage"),
-    String("{\"musicName\":\"" + String(availableMusic_name[curDownloadMusicIndex]) + "\", \"pageIndex\":" + String(curDownloadPageIndex) + "}"),
+    String("{\"musicId\":" + String(availableMusic_itemId[curDownloadMusicIndex]) + ", \"pageIndex\":" + String(curDownloadPageIndex) + "}"),
     &onMusicImageRequestResponse
   );
 }
@@ -133,7 +135,7 @@ void onImageSectionResponse(DynamicJsonDocument message) {
   String imageData = message["response"]["data"];
   curImageBufferIndex = startIndex + imageSectionLength;
 
-  String musicFileName = "/" + (String)curDownloadMusicIndex + "_[" + (String)curDownloadPageIndex + "].txt";
+  String musicFileName = "/" + (String)availableMusic_itemId[curDownloadMusicIndex] + "_[" + (String)curDownloadPageIndex + "].txt";
   file = SD.open(musicFileName, FILE_WRITE);
   if (file) {
     file.seek(file.size());
@@ -210,6 +212,7 @@ void onMessage(DynamicJsonDocument message) {
     {
       availableMusic_pageCount[i] = message["data"]["availableMusic"][i]["pages"];
       if (availableMusic_pageCount[i] == 0) break;
+      availableMusic_itemId[i] = message["data"]["availableMusic"][i]["id"];
       availableMusic_learningState[i] = message["data"]["availableMusic"][i]["learningState"];
       const char* musicName = message["data"]["availableMusic"][i]["name"].as<const char*>();
       availableMusic_name[i] = String(musicName);
@@ -266,6 +269,7 @@ void setup() {
                                           "}"
                                           "]");
   ConnectionManager.setup(ssid, password, deviceId, deviceKey, &onMessage);
+  ConnectionManager.setServerLocation("206.83.41.24", 8081);
 }
 
 
@@ -418,7 +422,7 @@ void openMusicPage(int _curMusicIndex) {
 
 
 void drawMusicImageFromSSD(int musicIndex, int pageIndex) {
-  String musicFileName = "/" + (String)musicIndex + "_[" + (String)pageIndex + "].txt";
+  String musicFileName = "/" + (String)availableMusic_itemId[musicIndex] + "_[" + (String)pageIndex + "].txt";
   Serial.print("Start drawing: ");
   Serial.println(musicFileName);
   file = SD.open(musicFileName);
@@ -445,7 +449,8 @@ void drawMusicImageFromSSD(int musicIndex, int pageIndex) {
   }
 
   file.close();
-  display.epd2.refresh(false); // FULL refresh
+
+  display.epd2.refresh(false); // FULL refresh when loading - speed not important
   Serial.println("Finished drawing.");
 }
 
@@ -512,6 +517,8 @@ void homePage_selectMusicItem(int musicItemIndex) {
   drawHeaders();
   drawHomePagePanels();
   display.display(true);
+
+  for (int i = 0; i < 10; i++) display.epd2.refresh(true);
 }
 
 
@@ -634,6 +641,7 @@ void drawUpdatePage() {
 
 
 void openPage(UIPage page) {
+  prevPage = curPage;
   curPage = page;
   if (page == HOME)
   {
@@ -670,18 +678,12 @@ void openPage(UIPage page) {
 
 
 bool musicImageDownloaded(int musicIndex, int pageIndex) {
-  String musicFileName = "/" + (String)musicIndex + "_[" + (String)pageIndex + "].txt";
-  Serial.print("Exists ");
-  Serial.print(musicFileName);
-  Serial.print(": ");
-  Serial.print(SD.exists(musicFileName));
+  String musicFileName = "/" + (String)availableMusic_itemId[musicIndex] + "_[" + (String)pageIndex + "].txt";
   if (SD.exists(musicFileName) == 0) return false;
 
   // Check if there is anything in the file
   file = SD.open(musicFileName);
   int fileSize = file.size();
   file.close();
-  Serial.print(" size: ");
-  Serial.println(fileSize);
   return fileSize > 0;
 }

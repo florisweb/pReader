@@ -6,7 +6,6 @@ import { readFile } from './polyfill.js';
 let Config = await readFile('./config.json');
 
 
-SocketServer.setup();
 
 // MUSIC API
 const MusicInterface = new musicInterface(Config.MusicAPI, (_state) => {
@@ -14,5 +13,6 @@ const MusicInterface = new musicInterface(Config.MusicAPI, (_state) => {
 	SocketServer.onMusicStateChange(_state);
 });
 
+SocketServer.setup(MusicInterface);
 
 setInterval(() => MusicInterface.sync(), Config.MusicAPI.updateFrequency);

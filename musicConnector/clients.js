@@ -1,5 +1,5 @@
 import { parseMessage } from './message.js';
-import { readFile } from './polyfill.js';
+import { readFile, newId } from './polyfill.js';
 import SocketServer from './webSocketServer.js';
 let Config = await readFile('./config.json');
 
@@ -61,6 +61,9 @@ class BaseClient {
 
 export class PReaderClient extends BaseClient {
     #authenticated = false;
+
+    
+
     constructor(_conn) {
         super(_conn);
     }
@@ -68,12 +71,10 @@ export class PReaderClient extends BaseClient {
     _onMessage(_buffer) {
         let message = super._onMessage(_buffer);
         if (!message) return;
-
         
-        if (this.#authenticated) this.onMessage(message);
+        if (this.#authenticated) return this.onMessage(message);
         if (!message.isRequestMessage) return this.send({error: "Parameters missing"});
         if (!message.isAuthMessage) return message.respond({error: "Parameters missing"});
-
 
         if (message.id !== Config.server.serviceId)
         {
@@ -84,30 +85,27 @@ export class PReaderClient extends BaseClient {
             console.log('wrong key!');
             return message.respond({error: "Invalid Key"});
         }
-
-        message.respond({type: "auth", data: true});
-        console.log('Authenticated!');
+        
         this.#authenticated = true;
+        console.log('Authenticated!');
+        message.respond({type: "auth", data: true});
 
         SocketServer.pushCurState(this);
     }
 
 
     onMessage(_message) {
-        console.log('mes', _message);
-        // switch (_message.type)
-        // {
-        //     case "requestMusicImage": 
-        //         return this.#handleRequestMusicImage(_message);
-        //     case "getImageSection":
-        //         return this.#handleRequestImageSection(_message);
-        // }
-
-
+        console.log('mes', _message.type, _message.data);
+        switch (_message.type)
+        {
+            case "requestMusicImage": 
+                return SocketServer.handleRequestMusicImage(_message);
+            case "getImageSection":
+                if (_message.isRequestMessage) return SocketServer.handleRequestImageSection(_message);
+        }
     }
 
-
-
+    #handleRequests(_message) {
+        
+    }
 }
-
-let newId = () => {return Math.round(Math.random() * 100000000) + "" + Math.round(Math.random() * 100000000);}

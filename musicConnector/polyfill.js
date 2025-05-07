@@ -79,3 +79,6 @@ export async function sendRequest(_url, _postParams = null, _isJSON = true) {
 	}
 	return json;
 }
+
+
+export let newId = () => {return Math.round(Math.random() * 100000000) + "" + Math.round(Math.random() * 100000000);}

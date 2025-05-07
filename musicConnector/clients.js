@@ -1,9 +1,12 @@
 import { parseMessage } from './message.js';
 import { readFile } from './polyfill.js';
+import SocketServer from './webSocketServer.js';
 let Config = await readFile('./config.json');
 
 
-let clients = [];
+
+
+export let clients = [];
 // Remove disconnected clients
 const interval = setInterval(function () {
   clients.forEach(function (client) {
@@ -85,12 +88,26 @@ export class PReaderClient extends BaseClient {
         message.respond({type: "auth", data: true});
         console.log('Authenticated!');
         this.#authenticated = true;
+
+        SocketServer.pushCurState(this);
     }
+
 
     onMessage(_message) {
         console.log('mes', _message);
+        // switch (_message.type)
+        // {
+        //     case "requestMusicImage": 
+        //         return this.#handleRequestMusicImage(_message);
+        //     case "getImageSection":
+        //         return this.#handleRequestImageSection(_message);
+        // }
+
 
     }
+
+
+
 }
 
 let newId = () => {return Math.round(Math.random() * 100000000) + "" + Math.round(Math.random() * 100000000);}

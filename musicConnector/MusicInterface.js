@@ -56,8 +56,9 @@ class musicInterface {
 	async getMusicImage(_musicId, _pageIndex) {
 		return new Promise((resolve) => {
 			let path = `${fileCachePath}/${_musicId}_[${_pageIndex}].base64`;
-			
-			readFile(path, false).then((_file) => resolve(_file), (_e) => {
+			readFile(path, false).then((_string) => {
+				resolve(Buffer.from(_string.toString(), 'base64'));
+			}, (_e) => {
 				console.log('error while reading', path, _e);
 				resolve(false);
 			});

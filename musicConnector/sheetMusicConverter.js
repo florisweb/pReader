@@ -6,15 +6,22 @@ import { Jimp } from "jimp";
 export async function storePDFAsBase64Files(_pdfPath, _outPath) {
   let counter = 0;
   const document = await pdf(_pdfPath, { scale: 1.15 });
+  let thumbnailImg;
   for await (const image of document) {
-    await storeImgAsBase64(image, `${_outPath}_[${counter}]`);
+    await storeImgAsBase64(image, `${_outPath}_[${counter}]`, false);
+    if (!thumbnailImg) thumbnailImg = image;
+    await fs.writeFile(`${_outPath}_[${counter}]`, image);
     counter++;
   }
+
+  storeImgAsBase64(thumbnailImg, `${_outPath}_[THUMB]`, true);
   return counter;
 }
 
-async function storeImgAsBase64(_imgBuffer, _name) {
+async function storeImgAsBase64(_imgBuffer, _name, _isThumbnail = false) {
+  const pixelCutOffPoint = _isThumbnail ? 190 : 180;
   const image = await Jimp.fromBuffer(_imgBuffer);
+  if (_isThumbnail) image.scale(.19);
   image.greyscale();
   image.rotate(-90);
 
@@ -26,7 +33,7 @@ async function storeImgAsBase64(_imgBuffer, _name) {
   for (let i = 0; i < image.bitmap.data.length; i += channels)
   {
     let x = (i % (channels * image.bitmap.width)) / channels;
-    curByte = curByte << 1 | (image.bitmap.data[i] > 127 ? 0 : 1);
+    curByte = curByte << 1 | (image.bitmap.data[i] > pixelCutOffPoint ? 0 : 1);
 
     if (x === image.bitmap.width - 1) // Add padding when last pixel is passed
     {

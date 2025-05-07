@@ -64,6 +64,18 @@ class musicInterface {
 			});
 		});
 	}
+
+	async getMusicThumbnail(_musicId) {
+		return new Promise((resolve) => {
+			let path = `${fileCachePath}/${_musicId}_[THUMB].base64`;
+			readFile(path, false).then((_string) => {
+				resolve(Buffer.from(_string.toString(), 'base64'));
+			}, (_e) => {
+				console.log('error while reading', path, _e);
+				resolve(false);
+			});
+		});
+	}
 }
 
 export default musicInterface;

@@ -102,6 +102,8 @@ export class PReaderClient extends BaseClient {
                 return SocketServer.handleRequestMusicImage(_message);
             case "getImageSection":
                 if (_message.isRequestMessage) return SocketServer.handleRequestImageSection(_message);
+            case "getThumbnail":
+                if (_message.isRequestMessage) return SocketServer.handleRequestThumbnail(_message);
         }
     }
 }

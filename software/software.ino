@@ -2,6 +2,7 @@
 #include <Fonts/FreeSansBoldOblique18pt7b.h>
 #include <Fonts/FreeSansOblique9pt7b.h>
 
+#include <array>
 #include "connectionManager.h"
 extern "C" {
 #include "crypto/base64.h"
@@ -177,20 +178,62 @@ void downloadUndownloadedItems() {
     for (int p = 0; p < maxPages; p++)
     {
       bool downloaded = musicImageDownloaded(m, p);
+      bool thumbnailDown = thumbnailDownloaded(m);
+
       Serial.print("downloaded?:");
       Serial.print(m);
       Serial.print("_[");
       Serial.print(p);
       Serial.print("]: ");
       Serial.println(downloaded);
-      if (downloaded) continue;
+      if (downloaded && thumbnailDown) continue;
       if (curPage != UPDATING_CATALOGUE) openPage(UPDATING_CATALOGUE);
 
-      downloadMusicImage(m, p);
+      if (!downloaded) downloadMusicImage(m, p);
+      if (thumbnailDown) return;
+      ConnectionManager.sendRequest(
+        String("getThumbnail"),
+        String("{\"musicId\":" + String(availableMusic_itemId[m]) + "}"),
+        &onThumbnailResponse
+      ); // Needs return to homepage / exit catalogue
       return;
     }
   }
   if (curPage != MUSIC) openPage(HOME);
+}
+
+
+
+
+const int thumbnailWidth = 184;
+const int thumbnailHeight = 130; // 181
+
+
+void onThumbnailResponse(DynamicJsonDocument message) {
+  String error = message["response"]["error"];
+  if (error && error != "null")
+  {
+    Serial.print("Error on requesting thumbnail:" );
+    Serial.println(error);
+    return;
+  }
+
+  int musicId = message["response"]["musicId"];
+  int imageWidth = message["response"]["width"];
+  String imgData = message["response"]["data"];
+
+  String musicFileName = "/" + (String)musicId + "_[THUMB].txt";
+  file = SD.open(musicFileName, FILE_WRITE);
+  if (file) {
+    Serial.print("Writing thumbnail ");
+    Serial.print(musicId);
+    file.print(imgData);
+    file.close();
+    Serial.println("-> done.");
+  } else {
+    Serial.print("error opening");
+    Serial.println(musicId);
+  }
 }
 
 
@@ -223,6 +266,42 @@ void onMessage(DynamicJsonDocument message) {
 }
 
 
+
+
+
+std::array<int, 2> getHomePagePanelPos(int _musicIndex) {
+  int learningStateCounts = 0;
+  int ownLearningState = min(availableMusic_learningState[_musicIndex], 2);
+  for (int i = 0; i < _musicIndex; i++)
+  {
+    int learningState = min(availableMusic_learningState[i], 2);
+    if (learningState != ownLearningState) continue;
+    learningStateCounts++;
+  }
+  return {learningStateCounts, ownLearningState};
+}
+
+int getHomePagePanelCountInRow(int _row) {
+  int learningStateCounts = 0;
+  for (int i = 0; i < availableMusicCount; i++)
+  {
+    int learningState = min(availableMusic_learningState[i], 2);
+    if (learningState != _row) continue;
+    learningStateCounts++;
+  }
+  return learningStateCounts;
+}
+
+
+int getHomePagePanelMusicIndexAtPos(int x, int y) {
+  for (int i = 0; i < availableMusicCount; i++)
+  {
+    std::array<int, 2> pos = getHomePagePanelPos(i);
+    if (pos[0] != x || pos[1] != y) continue;
+    return i;
+  }
+  return -1;
+}
 
 
 
@@ -365,10 +444,19 @@ void loop() {
 void next() {
   if (curPage == HOME)
   {
-    if (musicPage_curMusicIndex >= availableMusicCount - 1)
+    if (availableMusicCount == 0) return; // No point in moving - prevent a loop
+    std::array<int, 2> curPos = getHomePagePanelPos(musicPage_curMusicIndex);
+    curPos[0]++;
+    int newIndex = getHomePagePanelMusicIndexAtPos(curPos[0], curPos[1]);
+    while (newIndex == -1)
     {
-      homePage_selectMusicItem(0);
-    } else homePage_selectMusicItem(musicPage_curMusicIndex + 1);
+      curPos[1]++;
+      if (curPos[1] > 2) curPos[1] = 0;
+      curPos[0] = getHomePagePanelCountInRow(curPos[1]) - 1;
+      newIndex = getHomePagePanelMusicIndexAtPos(curPos[0], curPos[1]);
+    }
+
+    homePage_selectMusicItem(newIndex);
   } else if (curPage == MUSIC) {
     musicPage_curPageIndex++;
     if (musicPage_curPageIndex >= availableMusic_pageCount[musicPage_curMusicIndex])
@@ -384,10 +472,19 @@ void next() {
 void prev() {
   if (curPage == HOME)
   {
-    if (musicPage_curMusicIndex <= 0)
+    if (availableMusicCount == 0) return; // No point in moving - prevent a loop
+    std::array<int, 2> curPos = getHomePagePanelPos(musicPage_curMusicIndex);
+    curPos[0]--;
+    int newIndex = getHomePagePanelMusicIndexAtPos(curPos[0], curPos[1]);
+    while (newIndex == -1)
     {
-      homePage_selectMusicItem(availableMusicCount - 1);
-    } else homePage_selectMusicItem(musicPage_curMusicIndex - 1);
+      curPos[0] = 0;
+      curPos[1]--;
+      if (curPos[1] < 0) curPos[1] = 2;
+      newIndex = getHomePagePanelMusicIndexAtPos(curPos[0], curPos[1]);
+    }
+
+    homePage_selectMusicItem(newIndex);
   } else if (curPage == MUSIC) {
     musicPage_curPageIndex--;
     if (musicPage_curPageIndex < 0)
@@ -472,6 +569,9 @@ void drawHomePage() {
     drawHomePagePanels();
   }
   while (display.nextPage());
+
+  drawHomePagePanelThumbnails();
+  display.epd2.refresh(true);
 }
 
 
@@ -519,6 +619,9 @@ void homePage_selectMusicItem(int musicItemIndex) {
   display.display(true);
 
   for (int i = 0; i < 10; i++) display.epd2.refresh(true);
+
+  drawHomePagePanelThumbnails();
+  display.epd2.refresh(true);
 }
 
 
@@ -537,15 +640,23 @@ void drawHomePageHeader() {
   display.fillRect(homePage_margin, homePage_headerHeight - 1, display.width() - homePage_margin * 2, 1, GxEPD_BLACK);
 }
 
+
 void drawHomePagePanels() {
-  int learningStateCounts[] = {0, 0, 0};
   for (int i = 0; i < availableMusicCount; i++)
   {
-    int learningState = min(availableMusic_learningState[i], 2);
-    drawMusicPreviewPanel(learningStateCounts[learningState], learningState, i);
-    learningStateCounts[learningState]++;
+    std::array<int, 2> pos = getHomePagePanelPos(i);
+    drawMusicPreviewPanel(pos[0], pos[1], i);
   }
 }
+
+void drawHomePagePanelThumbnails() {
+  for (int i = 0; i < availableMusicCount; i++)
+  {
+    std::array<int, 2> pos = getHomePagePanelPos(i);
+    drawMusicPreviewThumbnail(pos[0], pos[1], i);
+  }
+}
+
 
 void drawHeaders() {
   const int vOffset = 40;
@@ -568,6 +679,7 @@ void drawHeaders() {
   }
 }
 
+
 void drawMusicPreviewPanel(int _listIndex, int _verticalListIndex, int _musicItemIndex) {
   bool selected = _musicItemIndex == musicPage_curMusicIndex;
   String curName = availableMusic_name[_musicItemIndex];
@@ -582,7 +694,7 @@ void drawMusicPreviewPanel(int _listIndex, int _verticalListIndex, int _musicIte
 
   const int width = maxWidth - hMargin * 2;
   const int height = maxHeight - vMargin * 2;
-  const int previewMargin = 10;
+  const int previewMargin = 10 - 1; // Border AROUND preview
   const int previewHeight = (width - 2 * previewMargin) * 1.41;
 
   const int topX = maxWidth * _listIndex + hMargin;
@@ -614,6 +726,40 @@ void drawMusicPreviewPanel(int _listIndex, int _verticalListIndex, int _musicIte
   display.print(subText);
 }
 
+void drawMusicPreviewThumbnail(int _listIndex, int _verticalListIndex, int _musicItemIndex) {
+  String musicFileName = "/" + (String)availableMusic_itemId[_musicItemIndex] + "_[THUMB].txt";
+  file = SD.open(musicFileName);
+  if (!file) {
+    Serial.print("error opening (thumbnail draw) ");
+    Serial.println(musicFileName);
+    return;
+  }
+  const int previewMargin = 10;
+  const int hMargin = homePage_margin;
+  const int vMargin = homePage_margin * 3;
+
+  const int maxWidth = display.width() / horizontalListItems;
+  const int maxHeight = (display.height() - homePage_headerHeight - 40) / verticalListItems;
+  const int topX = maxWidth * _listIndex + hMargin + previewMargin;
+  const int topY = maxHeight * _verticalListIndex + vMargin + homePage_headerHeight + vMargin + previewMargin;
+
+
+  const int fileSize = file.size();
+  char text[fileSize];
+  while (file.available()) {
+    int bytesRead = file.readBytes(text, fileSize); // Read bytes into buffer
+
+    size_t outputLength;
+    uint8_t* decoded = base64_decode((const unsigned char *)text, bytesRead, &outputLength);
+    for (int i = 0; i < outputLength; i++) decoded[i] = ~decoded[i]; // Invert image color
+
+    // Different coordinate system due to direct RAM write
+    display.epd2.writeImage(decoded, display.height() - topY - thumbnailWidth, topX, thumbnailWidth, thumbnailHeight);
+    free(decoded);
+  }
+  file.close();
+}
+
 
 
 
@@ -625,18 +771,19 @@ void drawUpdatePage() {
     display.fillScreen(GxEPD_WHITE);
     display.setFont(&FreeSansOblique9pt7b);
     display.setTextColor(GxEPD_BLACK);
-    String updateText = "Updating catalogue...";
 
+    String updateText = "Updating catalogue...";
     int16_t tbx, tby; uint16_t tbw, tbh;
     display.getTextBounds(updateText, 0, 0, &tbx, &tby, &tbw, &tbh);
 
     uint16_t x = display.width() / 2 - tbw / 2 - tbx;
-    uint16_t y = display.height() / 2 - tbh / 2 - tbh;
+    uint16_t y = display.height() / 2 - tbh / 2 - tby;
     display.setCursor(x, y);
     display.print(updateText);
   }
   while (display.nextPage());
 }
+
 
 
 
@@ -676,6 +823,16 @@ void openPage(UIPage page) {
 
 
 
+bool thumbnailDownloaded(int musicIndex) {
+  String musicFileName = "/" + (String)availableMusic_itemId[musicIndex] + "_[THUMB].txt";
+  if (SD.exists(musicFileName) == 0) return false;
+
+  // Check if there is anything in the file
+  file = SD.open(musicFileName);
+  int fileSize = file.size();
+  file.close();
+  return fileSize > 0;
+}
 
 
 bool musicImageDownloaded(int musicIndex, int pageIndex) {

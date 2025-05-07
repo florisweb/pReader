@@ -17,7 +17,7 @@ const SocketServer = new class {
 	setup(_musicInterface) {
 		MusicInterface = _musicInterface;
 		this.#wss = new WebSocketServer({ port: Config.server.port });
-		console.log('Runining server on ' + Config.server.port);
+		console.log('Running server on ' + Config.server.port);
 		this.#wss.on("connection", _conn => new PReaderClient(_conn));
 	}
 
@@ -28,7 +28,7 @@ const SocketServer = new class {
 		this.pushCurState();
 	}
 
-	pushCurState(_client) {
+	async pushCurState(_client) {
 		let availableMusic = this.#curMusicState.map(r => {
 			return {
 				pages: r.pageCount,
@@ -50,8 +50,17 @@ const SocketServer = new class {
 	}
 
 
+	async handleRequestThumbnail(_message) {
+		let thumbnailBuffer = await MusicInterface.getMusicThumbnail(_message.data.musicId)
+		if (!thumbnailBuffer) return _message.respond({error: 'E_MusicItemNotFound'});
+        _message.respond({
+            data: thumbnailBuffer.toString('base64'),
+            width: 184,
+            musicId: _message.data.musicId,
+        });
+	}
 
-	 async handleRequestMusicImage(_message) {
+	async handleRequestMusicImage(_message) {
         // Remove timed out requests
         this.#curRequestedMusicImages = this.#curRequestedMusicImages.filter(r => new Date() - r.startTime < this.#requestTimeoutDuration);
 
@@ -100,7 +109,7 @@ const SocketServer = new class {
 function statusToLearningState(_status) {
 	switch (_status) {
 		case "learning": return 0;
-		case "wishList": return 1;
+		case "wishlist": return 1;
 		case "onHold": return 2;
 		case "finished": return 3;
 		default: return 4;

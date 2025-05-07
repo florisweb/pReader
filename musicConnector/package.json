@@ -5,7 +5,8 @@
   "dependencies": {
     "jimp": "^1.6.0",
     "node-fetch": "^3.3.2",
-    "pdf-to-img": "^4.4.0"
+    "pdf-to-img": "^4.4.0",
+    "ws": "^8.18.2"
   },
   "type": "module",
   "scripts": {

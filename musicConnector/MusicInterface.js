@@ -103,6 +103,7 @@ async function onItemLose(_item) {
 }
 
 async function onItemAdd(_item) {
+	curMusicItemState = curMusicItemState.filter(r => r.id !== _item.id);
 	curMusicItemState.push(_item);
 	_item.pageCount = await downloadSheetMusic(_item.id)
 }

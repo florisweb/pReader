@@ -446,15 +446,23 @@ void next() {
   {
     if (availableMusicCount == 0) return; // No point in moving - prevent a loop
     std::array<int, 2> curPos = getHomePagePanelPos(musicPage_curMusicIndex);
+    Serial.print("CurPos: ");
+    Serial.print(curPos[0]);
+    Serial.print(" - ");
+    Serial.println(curPos[1]);
     curPos[0]++;
     int newIndex = getHomePagePanelMusicIndexAtPos(curPos[0], curPos[1]);
     while (newIndex == -1)
     {
       curPos[1]++;
       if (curPos[1] > 2) curPos[1] = 0;
-      curPos[0] = getHomePagePanelCountInRow(curPos[1]) - 1;
+      curPos[0] = 0;
       newIndex = getHomePagePanelMusicIndexAtPos(curPos[0], curPos[1]);
     }
+    Serial.print("NewPos: ");
+    Serial.print(curPos[0]);
+    Serial.print(" - ");
+    Serial.println(curPos[1]);
 
     homePage_selectMusicItem(newIndex);
   } else if (curPage == MUSIC) {
@@ -474,15 +482,24 @@ void prev() {
   {
     if (availableMusicCount == 0) return; // No point in moving - prevent a loop
     std::array<int, 2> curPos = getHomePagePanelPos(musicPage_curMusicIndex);
+    Serial.print("CurPos: ");
+    Serial.print(curPos[0]);
+    Serial.print(" - ");
+    Serial.println(curPos[1]);
+
     curPos[0]--;
     int newIndex = getHomePagePanelMusicIndexAtPos(curPos[0], curPos[1]);
     while (newIndex == -1)
     {
-      curPos[0] = 0;
       curPos[1]--;
       if (curPos[1] < 0) curPos[1] = 2;
+      curPos[0] = getHomePagePanelCountInRow(curPos[1]) - 1;
       newIndex = getHomePagePanelMusicIndexAtPos(curPos[0], curPos[1]);
     }
+    Serial.print("NewPos: ");
+    Serial.print(curPos[0]);
+    Serial.print(" - ");
+    Serial.println(curPos[1]);
 
     homePage_selectMusicItem(newIndex);
   } else if (curPage == MUSIC) {

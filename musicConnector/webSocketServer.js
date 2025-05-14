@@ -34,7 +34,8 @@ const SocketServer = new class {
 				pages: r.pageCount,
 				learningState: statusToLearningState(r.status),
 				name: r.title,
-				id: r.id
+				id: r.id,
+				musicImageVersion: r.imageVersion
 			}
 		});
 

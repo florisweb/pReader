@@ -1,5 +1,5 @@
 import fetch from 'node-fetch';
-import { readFile, writeFile, removeFile, sendRequest } from './polyfill.js';
+import { readFile, writeFile, removeFile, sendRequest, newId } from './polyfill.js';
 import { readdir } from 'node:fs/promises'
 
 import { storePDFAsBase64Files } from './sheetMusicConverter.js';
@@ -105,7 +105,8 @@ async function onItemLose(_item) {
 async function onItemAdd(_item) {
 	curMusicItemState = curMusicItemState.filter(r => r.id !== _item.id);
 	curMusicItemState.push(_item);
-	_item.pageCount = await downloadSheetMusic(_item.id)
+	_item.pageCount = await downloadSheetMusic(_item.id);
+	_item.imageVersion = parseInt(newId().substr(0, 5));
 }
 
 async function downloadSheetMusic(_musicItemId) {

@@ -19,19 +19,33 @@ export async function storePDFAsBase64Files(_pdfPath, _outPath) {
 }
 
 async function storeImgAsBase64(_imgBuffer, _name, _isThumbnail = false) {
-  const pixelCutOffPoint = _isThumbnail ? 190 : 180;
+  const targetWidth = _isThumbnail ? 184 : 968;
+  const targetHeight = _isThumbnail ? 130 : 684; //684
+  const pixelCutOffPoint = _isThumbnail ? 200 : 190;
   const image = await Jimp.fromBuffer(_imgBuffer);
-  if (_isThumbnail) image.scale(.19);
   image.greyscale();
   image.rotate(-90);
+
+  let preWidth = image.bitmap.width;
+  image.scale(targetWidth / image.bitmap.width);
 
   let bitMapOut = [];
   let curByte = 0;
   let horizontalPadding = (8 - (image.bitmap.width % 8)) % 8;
   const channels = 4;
 
-  for (let i = 0; i < image.bitmap.data.length; i += channels)
+
+  let requiredPixels = targetHeight * targetWidth;
+  let excessPixels = requiredPixels - image.bitmap.data.length / channels;
+  console.log('excess', excessPixels);
+  for (let i = -Math.floor(excessPixels / 2); i < requiredPixels * channels - Math.floor(excessPixels / 2); i += channels)
   {
+    if (i < 0 || i > image.bitmap.data.length) // Pad 'bottom' if image not 'high' enough
+    {
+      bitMapOut.push(0);
+      continue;
+    }
+    
     let x = (i % (channels * image.bitmap.width)) / channels;
     curByte = curByte << 1 | (image.bitmap.data[i] > pixelCutOffPoint ? 0 : 1);
 
@@ -47,6 +61,11 @@ async function storeImgAsBase64(_imgBuffer, _name, _isThumbnail = false) {
   }
 
   let buffer = Buffer.from(bitMapOut);
+  // image.bitmap.data = buffer;
+  // image.bitmap.width = targetWidth;
+  // image.bitmap.height = targetHeight;
+  // image.write(_name + '.png');
+
   let encoded = buffer.toString('base64');
   fs.writeFile(`${_name}.base64`, encoded);
 }

@@ -54,6 +54,7 @@ int availableMusicCount = 0;
 String availableMusic_name[20];
 int availableMusic_itemId[20];
 int availableMusic_pageCount[20];
+int availableMusic_musicImageVersion[20];
 int availableMusic_learningState[20];
 
 const int musicImageWidth = 968;
@@ -202,6 +203,27 @@ void downloadUndownloadedItems() {
   if (curPage != MUSIC) openPage(HOME);
 }
 
+void removeMusicFiles(int musicId) {
+  Serial.print("Remove files of: ");
+  Serial.println(musicId);
+
+  removeFile("/" + (String)musicId + "_[THUMB].txt");
+  int pageIndex = 0;
+  while (removeFile("/" + (String)musicId + "_[" + pageIndex + "].txt"))
+  {
+    pageIndex++;
+  }
+}
+
+bool removeFile(String path) {
+  if (SD.exists(path) == 0) return false;
+  Serial.print("Removing: ");
+  Serial.println(path);
+  SD.remove(path);
+  return true;
+}
+
+
 
 
 
@@ -250,15 +272,25 @@ void onMessage(DynamicJsonDocument message) {
 
   if (packetType == "curState")
   {
-    availableMusicCount = 0;
     for (int i = 0; i < sizeof(availableMusic_pageCount) / sizeof(int); i++)
     {
       availableMusic_pageCount[i] = message["data"]["availableMusic"][i]["pages"];
       if (availableMusic_pageCount[i] == 0) break;
       availableMusic_itemId[i] = message["data"]["availableMusic"][i]["id"];
       availableMusic_learningState[i] = message["data"]["availableMusic"][i]["learningState"];
+
       const char* musicName = message["data"]["availableMusic"][i]["name"].as<const char*>();
       availableMusic_name[i] = String(musicName);
+
+      int newMusicVersion = message["data"]["availableMusic"][i]["musicImageVersion"];
+      if (newMusicVersion != availableMusic_musicImageVersion[i]) removeMusicFiles(availableMusic_itemId[i]);
+      availableMusic_musicImageVersion[i] = newMusicVersion;
+    }
+
+    availableMusicCount = 0;
+    for (int i = 0; i < sizeof(availableMusic_pageCount) / sizeof(int); i++)
+    {
+      if (availableMusic_pageCount[i] == 0) break;
       availableMusicCount = i + 1;
     }
     downloadUndownloadedItems();

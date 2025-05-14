@@ -5,9 +5,14 @@ GND: Screen, buttons, SSD
 
 
 Screen
-CS: 5
+CS: 5 -> 17
 MOSI: 23
 CLK: 18
+PWR: 3.3
+BUSY: 4
+RST: 16
+DC: 17-> 5
+
 
 
 SSD-Storage

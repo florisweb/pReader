@@ -36,6 +36,7 @@ GxEPD2_BW < GxEPD2_1330_GDEM133T91, GxEPD2_1330_GDEM133T91::HEIGHT / 2 > // /2 m
 display(GxEPD2_1330_GDEM133T91(/*CS=*/ DisplayCS, /*DC=*/ 5, /*RST=*/ displayResetPin, /*BUSY=*/ 4)); // GDEM133T91 960x680, SSD1677, (FPC-7701 REV.B)
 
 
+void(* _rebootESP) (void) = 0; // create a standard reset function
 
 enum UIPage {
   HOME,
@@ -203,6 +204,85 @@ void downloadUndownloadedItems() {
   if (curPage != MUSIC) openPage(HOME);
 }
 
+void writeConfigFile() {
+  String configString = "[";
+  for (int i = 0; i < availableMusicCount; i++)
+  {
+    if (i != 0) configString += ", ";
+    String musicString =
+      "{\"id\":" + String(availableMusic_itemId[i]) +
+      ",\"name\":\"" + availableMusic_name[i] + "\"" +
+      ",\"pages\":" + String(availableMusic_pageCount[i]) +
+      ",\"musicImageVersion\":" + String(availableMusic_musicImageVersion[i]) +
+      ",\"learningState\":" + String(availableMusic_learningState[i]) +
+      "}";
+    configString += musicString;
+  }
+  configString += "]";
+
+  file = SD.open("/musicItems.json", FILE_WRITE);
+  if (file) {
+    Serial.print("Writing config: ");
+    Serial.println(configString);
+    file.print(configString);
+    file.close();
+  } else {
+    Serial.println("Error writing config.");
+  }
+}
+
+void loadConfigFile() {
+  file = SD.open("/musicItems.json");
+  if (!file)
+  {
+    Serial.println("Error reading config.");
+    return;
+  }
+
+  char text[file.size()];
+  while (file.available()) {
+    int bytesRead = file.readBytes(text, file.size()); // Read bytes into buffer
+  }
+  Serial.print("Read file: ");
+  Serial.println(text);
+  file.close();
+
+  DynamicJsonDocument doc(1024);
+  deserializeJson(doc, text);
+  importMusicItemSet(doc);
+  openPage(HOME);
+}
+
+void importMusicItemSet(DynamicJsonDocument _jsonArr) {
+  for (int i = 0; i < sizeof(availableMusic_pageCount) / sizeof(int); i++)
+  {
+    importMusicItem(_jsonArr[i], i);
+  }
+
+  availableMusicCount = 0;
+  for (int i = 0; i < sizeof(availableMusic_pageCount) / sizeof(int); i++)
+  {
+    if (availableMusic_pageCount[i] == 0) break;
+    availableMusicCount = i + 1;
+  }
+}
+
+void importMusicItem(DynamicJsonDocument _obj, int i) {
+   availableMusic_pageCount[i] =_obj["pages"];
+    if (availableMusic_pageCount[i] == 0) return;
+    availableMusic_itemId[i] = _obj["id"];
+    availableMusic_learningState[i] = _obj["learningState"];
+
+    const char* musicName = _obj["name"].as<const char*>();
+    availableMusic_name[i] = String(musicName);
+
+    int newMusicVersion = _obj["musicImageVersion"];
+    if (newMusicVersion != availableMusic_musicImageVersion[i] && availableMusic_musicImageVersion[i] != 0) removeMusicFiles(availableMusic_itemId[i]);
+    availableMusic_musicImageVersion[i] = newMusicVersion;  
+}
+
+
+
 void removeMusicFiles(int musicId) {
   Serial.print("Remove files of: ");
   Serial.println(musicId);
@@ -228,8 +308,7 @@ bool removeFile(String path) {
 
 
 const int thumbnailWidth = 184;
-const int thumbnailHeight = 130; // 181
-
+const int thumbnailHeight = 130;
 
 void onThumbnailResponse(DynamicJsonDocument message) {
   String error = message["response"]["error"];
@@ -272,27 +351,8 @@ void onMessage(DynamicJsonDocument message) {
 
   if (packetType == "curState")
   {
-    for (int i = 0; i < sizeof(availableMusic_pageCount) / sizeof(int); i++)
-    {
-      availableMusic_pageCount[i] = message["data"]["availableMusic"][i]["pages"];
-      if (availableMusic_pageCount[i] == 0) break;
-      availableMusic_itemId[i] = message["data"]["availableMusic"][i]["id"];
-      availableMusic_learningState[i] = message["data"]["availableMusic"][i]["learningState"];
-
-      const char* musicName = message["data"]["availableMusic"][i]["name"].as<const char*>();
-      availableMusic_name[i] = String(musicName);
-
-      int newMusicVersion = message["data"]["availableMusic"][i]["musicImageVersion"];
-      if (newMusicVersion != availableMusic_musicImageVersion[i]) removeMusicFiles(availableMusic_itemId[i]);
-      availableMusic_musicImageVersion[i] = newMusicVersion;
-    }
-
-    availableMusicCount = 0;
-    for (int i = 0; i < sizeof(availableMusic_pageCount) / sizeof(int); i++)
-    {
-      if (availableMusic_pageCount[i] == 0) break;
-      availableMusicCount = i + 1;
-    }
+    importMusicItemSet(message["data"]["availableMusic"]);
+    writeConfigFile();
     downloadUndownloadedItems();
   }
 }
@@ -346,7 +406,8 @@ void onResponse(DynamicJsonDocument message) {
 void setup() {
   Serial.begin(115200);
 
-  Serial.println("");
+  Serial.println("========================================================================================================================================================================================================================================================================");
+  delay(100);
   Serial.println("");
   Serial.println("Setting up display...");
 
@@ -368,6 +429,8 @@ void setup() {
   }
 
   Serial.println("SD initialization done.");
+
+  loadConfigFile();
 
   Serial.println("Setting up WiFi...");
   delay(200);
@@ -469,6 +532,8 @@ void loop() {
     } else if (ch == "mem") {
       Serial.print("Free mem: ");
       Serial.println(ESP.getFreeHeap());
+    } else if (ch == "reboot") {
+      _rebootESP();
     }
   }
 }

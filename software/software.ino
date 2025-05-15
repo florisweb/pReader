@@ -12,11 +12,6 @@ extern "C" {
 #include <SD.h>
 
 
-const char* ssid = "";
-const char* password = "";
-const String deviceId = "";
-const String deviceKey = "";
-
 connectionManager ConnectionManager;
 
 const int nextButtonPin = 27;
@@ -243,8 +238,6 @@ void loadConfigFile() {
   while (file.available()) {
     int bytesRead = file.readBytes(text, file.size()); // Read bytes into buffer
   }
-  Serial.print("Read file: ");
-  Serial.println(text);
   file.close();
 
   DynamicJsonDocument doc(1024);
@@ -311,7 +304,7 @@ const int thumbnailWidth = 184;
 const int thumbnailHeight = 130;
 
 void onThumbnailResponse(DynamicJsonDocument message) {
-  String error = message["response"]["error"];
+  String error = message["responsed"]["error"];
   if (error && error != "null")
   {
     Serial.print("Error on requesting thumbnail:" );
@@ -442,7 +435,7 @@ void setup() {
                                           "\"description\": \"Sets text\""
                                           "}"
                                           "]");
-  ConnectionManager.setup(ssid, password, deviceId, deviceKey, &onMessage);
+  ConnectionManager.setup(&onMessage);
   ConnectionManager.setServerLocation("206.83.41.24", 8081);
 }
 
@@ -759,6 +752,7 @@ void drawHomePagePanels() {
   for (int i = 0; i < availableMusicCount; i++)
   {
     std::array<int, 2> pos = getHomePagePanelPos(i);
+    if (pos[0] > 3) continue;
     drawMusicPreviewPanel(pos[0], pos[1], i);
   }
 }
@@ -767,6 +761,7 @@ void drawHomePagePanelThumbnails() {
   for (int i = 0; i < availableMusicCount; i++)
   {
     std::array<int, 2> pos = getHomePagePanelPos(i);
+    if (pos[0] > 3) continue;
     drawMusicPreviewThumbnail(pos[0], pos[1], i);
   }
 }

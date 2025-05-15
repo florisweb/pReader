@@ -4,13 +4,14 @@
 #include <WebSocketsClient.h>
 #include <ArduinoJson.h>
 #include "connectionManager.h"
+#include "config.h"
+
 
 WiFiMulti WiFiMulti;
 WebSocketsClient webSocket;
 
-String deviceId;
-String deviceKey;
 bool authenticated = false;
+bool connectedToWiFi = false;
 String jsonString;
 
 
@@ -63,7 +64,7 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
       lastHeartBeat = millis();
 
       // Authentication request
-      webSocket.sendTXT("{\"id\":\"" + deviceId + "\", \"key\": \"" + deviceKey + "\", \"requestId\": \"" + String(random(0, 10000)) + "\"}");
+      webSocket.sendTXT("{\"id\":\"" + DeviceId + "\", \"key\": \"" + DeviceKey + "\", \"requestId\": \"" + String(random(0, 10000)) + "\"}");
       break;
     case WStype_TEXT:
       Serial.printf("[ConnectionManager] Get text: %s\n", payload);
@@ -142,37 +143,46 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
 
 
 
-void connectionManager::setup(const char* _ssid, const char* _password, const String _deviceId, const String _deviceKey, void _onMessage(DynamicJsonDocument message)) {
+void connectionManager::setup(void _onMessage(DynamicJsonDocument message)) {
   pinMode(LED_BUILTIN, OUTPUT);
-  deviceId            = _deviceId;
-  deviceKey           = _deviceKey;
   onMessagePointer    = _onMessage;
 
   Serial.begin(115200);
   Serial.setDebugOutput(true);
 
-  WiFiMulti.addAP(_ssid, _password);
-  Serial.print("[ConnectionManager] Started connecting to network: ");
-  Serial.println(_ssid);
+  size_t SSIDCount = sizeof(HTTP_SSIDs)/sizeof(HTTP_SSIDs[0]);
+  for (int i = 0; i < SSIDCount; i++) WiFiMulti.addAP(HTTP_SSIDs[i], HTTPpasswords[i]);
+  attemptToConnect();
+  setServerLocation(serverIP, serverPort);
+}
+
+void connectionManager::attemptToConnect() {
+  Serial.print("[ConnectionManager] Started connecting to WiFi ");
+  int tries = 0;
+  connectedToWiFi = false;
   while (WiFiMulti.run() != WL_CONNECTED)
   {
     Serial.print(".");
+    tries++;
     delay(100);
+    if (tries < connAttemptsPerTry) continue;
+    Serial.println("Failed to connect to WiFi!");
+    return;
   }
+  
+  connectedToWiFi = true;
   Serial.println("-> Connected!");
-
-  setServerLocation(serverIP, serverPort);
 }
 
 void connectionManager::setServerLocation(String _ip, int _port) {
   serverIP = _ip;
   serverPort = _port;
-  
+
   if (webSocket.isConnected()) {
     Serial.print("Changed serverLoc, was already connected, disconnecting...");
     webSocket.disconnect();
   }
- 
+
   Serial.print("Connecting to WS server at ");
   Serial.print(serverIP);
   Serial.print(":");
@@ -226,7 +236,7 @@ void connectionManager::sendRequest(String _type, String _data, void _onRespond(
 
 
 bool connectionManager::isConnected() {
-  return true;
+  return connectedToWiFi;
 }
 
 bool connectionManager::isAuthenticated() {
@@ -259,5 +269,6 @@ void connectionManager::loop() {
     rebootESP();
   }
 
+  if (!connectedToWiFi) attemptToConnect();
   webSocket.loop();
 }

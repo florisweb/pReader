@@ -80,9 +80,9 @@ mirror([1, 0, 0])
 difference() 
 {
     union() {
-        frontHalf();
+//        frontHalf();
 //        translate([0, 0, height])
-//        backHalf();
+        backHalf();
     }
     
     translate([-10, depth / 2, -50]) cube([1000, depth / 2 + 10, 1000]);

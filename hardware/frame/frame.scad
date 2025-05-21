@@ -3,30 +3,42 @@ $fn=25;
 
 screwRadius = 3.7/2;
 screwRadiusM3 = 1.45; // The M3x10mm screws
+boltSideMargin = 4; // Distance of centre of a bolt to the side of the frame
+
 wallThickness = 1.5;
-topThickness = 0.7;
+topThickness = 0.8;
 bottomThickness = 1;
 
+
+
+// SCREEN
 innerScreenLeft = 3;
 innerScreenTop = 4;
 innerScreenWidth = 198.16;
 innerScreenDepth = 279.52;
 screenHeight = 1.5;
-
-ESPDepth = 52;
-ESPPortWidth = 9;
-ESPPortHeight = 3.5;
-ESPPortLeftOffset = 10;
-
 screenWidth = 212.26;
-extraSideWidth = 23;
+
 screenMargin = .5;
+extraSideWidth = 23;
+
 width = screenWidth + extraSideWidth + wallThickness * 2 + screenMargin * 2;
 depth = 286.32 + wallThickness * 2 + screenMargin * 2;
 height = 10 + topThickness;
 
 
 
+
+
+// ======== FRONT ========
+// ESP
+ESPDepth = 52;
+ESPPortWidth = 9;
+ESPPortHeight = 3.5;
+ESPPortLeftOffset = 10;
+
+
+// Buttons
 buttonSetInterval = 20;
 buttonSetTopOffset = 80;
 
@@ -44,8 +56,18 @@ TButtonDepth = 6;
 TButtonPressableWidth = 1.5;
 
 
+// Pedal Connector
+pedalConnectorBottomOffset = 20;
+femaleConnWidth = 2.6;
+femaleConnHeight = 3;
+femaleConnCableSize = 1.25;
+femaleConnLength = 14.5;
+
+rightSideEnsurerWidth = 2;
+femalePedalConnectorWidth = femaleConnWidth * 3 + wallThickness * 2 + rightSideEnsurerWidth;
 
 
+// ======== BACK ========
 backConnWidth = 20;
 backConnHeight = 7;
 
@@ -53,13 +75,14 @@ backConnHeight = 7;
     
 
 
+
 mirror([1, 0, 0])
 difference() 
 {
     union() {
-//        frontHalf();
-        translate([0, 0, height])
-        backHalf();
+        frontHalf();
+//        translate([0, 0, height])
+//        backHalf();
     }
     
     translate([-10, depth / 2, -50]) cube([1000, depth / 2 + 10, 1000]);
@@ -71,39 +94,9 @@ difference()
 module backHalf() {
     difference() {
         cube([width, depth, bottomThickness]);
-        translate([5, 4, 0])
-        cylinder(r=screwRadiusM3, h=20);
+
         
-        translate([width - 6.5, 5.5, 0])
-        cylinder(r=screwRadiusM3, h=20);
-        
-        translate([width / 2, 5.5, 0])
-        cylinder(r=screwRadiusM3, h=20);
-        
-        translate([4, depth / 2 - 5, 0])
-        cylinder(r=screwRadiusM3, h=20);
-        
-        translate([width - 6.5, depth / 2 - 5, 0])
-        cylinder(r=screwRadiusM3, h=20);
-        
-        
-        translate([4, depth / 2 + 5, 0])
-        cylinder(r=screwRadiusM3, h=20);
-        
-        translate([width - 6.5, depth / 2 + 5, 0])
-        cylinder(r=screwRadiusM3, h=20);
-        
-        
-        translate([width - 28 - extraSideWidth, depth - 4, 0])
-        cylinder(r=screwRadiusM3, h=20);
-        
-        translate([width - 6.5, depth - 57.5, 0])
-        cylinder(r=screwRadiusM3, h=20);
-        
-        translate([4, depth - 5, 0])
-        cylinder(r=screwRadiusM3, h=20);
-         
-        
+        // LOGO
         translate([
             width / 2 + 26.5, depth / 2 - 25, bottomThickness - 0.15]) {
             linear_extrude(.15)
@@ -111,6 +104,44 @@ module backHalf() {
             rotate([0, 180, 0])
             import("/Library/WebServer/Documents/git/AutoHomeProjects/pReader/hardware/frame/readerLogo.svg");
         }
+        
+        // TOP
+        translate([width - 23 - boltSideMargin - extraSideWidth, depth - boltSideMargin, 0])
+        cylinder(r=screwRadiusM3, h=20);
+
+        translate([boltSideMargin, depth / 2 + boltSideMargin, 0])
+        cylinder(r=screwRadiusM3, h=20);
+
+        translate([width - boltSideMargin, depth / 2 + boltSideMargin, 0])
+        cylinder(r=screwRadiusM3, h=20);
+        
+        translate([width - boltSideMargin, depth - 57.5, 0])
+        cylinder(r=screwRadiusM3, h=20);
+        
+        translate([boltSideMargin, depth - boltSideMargin, 0])
+        cylinder(r=screwRadiusM3, h=20);
+        
+        translate([width / 2, depth - boltSideMargin, 0])
+        cylinder(r=screwRadiusM3, h=20);
+        
+        
+        
+        // BOTTOM
+        translate([boltSideMargin, boltSideMargin, 0])
+        cylinder(r=screwRadiusM3, h=20);
+        
+        translate([width - boltSideMargin, boltSideMargin, 0])
+        cylinder(r=screwRadiusM3, h=20);
+        
+        translate([width / 2, boltSideMargin, 0])
+        cylinder(r=screwRadiusM3, h=20);
+        
+        translate([boltSideMargin, depth / 2 - boltSideMargin, 0])
+        cylinder(r=screwRadiusM3, h=20);
+        
+        translate([width - boltSideMargin, depth / 2 - boltSideMargin, 0])
+        cylinder(r=screwRadiusM3, h=20);
+
     }
     
     
@@ -128,11 +159,12 @@ module backHalf() {
     }
     
     // Blocks to keep the screen pinned down
+    // TOP
     translate([0, depth - 10 - (screenMargin+wallThickness), -(height - screenHeight)])
     {
         translate([10, 0, 0])
         cube([10, 10, height - screenHeight]);
-        translate([width/2 - 5, 0, 0])
+        translate([width/2 - 17, 0, 0])
         cube([10, 10, height - screenHeight]);
         translate([width - 10 - extraSideWidth - 12, 0, 0])
         cube([10, 10, height - screenHeight]);
@@ -196,7 +228,13 @@ module mainFrameFrontHalf() {
         
         translate([wallThickness, wallThickness, topThickness])
         cube([width - wallThickness * 2, depth - wallThickness * 2, height]);
+            
+        // Cut out a hole in the wall for the pedalConnector
+        translate([width, pedalConnectorBottomOffset, topThickness])
+        rotate([0, 0, 90])
+        cube([femalePedalConnectorWidth, wallThickness, height]);
         
+            
         translate([
              width, 
             -buttonHoleMargin + depth - buttonSetTopOffset, 
@@ -259,44 +297,8 @@ module mainFrameFrontHalf() {
 
     }
     
-
-    stopperWidth = width - screenWidth - wallThickness * 2 - screenMargin * 2;
-    translate([width - stopperWidth - wallThickness, wallThickness, 0]) 
-    difference() {
-        cube([stopperWidth, 8, height]);
-        translate([20 - 2, 4, 0])
-        cylinder(r=screwRadiusM3, h=30);
-    }
     
-    translate([width - stopperWidth - wallThickness, depth - wallThickness - 8 - ESPDepth, 0]) 
-    difference() {
-        cube([stopperWidth, 8, height]);
-        translate([20 - 2, 4, 0])
-        cylinder(r=screwRadiusM3, h=30);
-    }
-    
-    
-    translate([
-        width - 20 - wallThickness, 
-        depth / 2 - 20 / 2, 
-    0]) {
-        difference() 
-        {
-            cube([20, 20, height]);
-            translate([20 - 5, 5, 0])
-            cylinder(r=screwRadiusM3, h=30);
-            
-            translate([20 - 5, 5 + 10, 0])
-            cylinder(r=screwRadiusM3, h=30);
-            
-            translate([20 - 13, 30, height / 2])
-            rotate([90, 0, 0])
-            cylinder(r=screwRadius, h=50);
-        }
-    }
-    
-    
-        
+    // BUTTONS
     translate([
             width - (buttonClampWidth + TButtonPressableWidth + wallThickness), 
             -buttonHoleMargin + depth - buttonSetTopOffset + 8.5, 
@@ -315,31 +317,140 @@ module mainFrameFrontHalf() {
     }
     
     
-    translate([10, 8, topThickness+screenHeight - 1])
-    triConnectionPoint();
     
-    translate([8, depth / 2 - 10, topThickness+screenHeight - 1])
+    // PEDAL-CONNECTOR
+    translate([width, pedalConnectorBottomOffset, 0])
+    rotate([0, 0, 90])
+    femalePedalConnector();
+    
+    
+    
+    // DISPLAY STOPPERS: keep the display in place
+    stopperWidth = width - screenWidth - wallThickness * 2 - screenMargin * 2;
+    translate([width, 0, 0]) 
+    difference() {
+        translate([-stopperWidth - wallThickness, wallThickness, 0]) 
+        cube([stopperWidth, 8, height]);
+        translate([-boltSideMargin, boltSideMargin, 0])
+        cylinder(r=screwRadiusM3, h=30);
+    }
+    
+    translate([width, depth - wallThickness - 8 - ESPDepth, 0]) 
+    difference() {
+        translate([-stopperWidth - wallThickness, 0, 0]) 
+        cube([stopperWidth, 8, height]);
+        translate([-boltSideMargin, 4, 0])
+        cylinder(r=screwRadiusM3, h=30);
+    }
+    
+    verticalConnectorSize = 20;
+    translate([
+        width, 
+        depth / 2 - verticalConnectorSize / 2, 
+    0]) {
+        difference() 
+        {
+            translate([- verticalConnectorSize - wallThickness, 0, 0]) {
+                difference() {
+                    cube([verticalConnectorSize, verticalConnectorSize, height]);
+                    
+                    // Vertical bolt hole
+                    translate([20 - 13, 30, height / 2])
+                    rotate([90, 0, 0])
+                    cylinder(r=screwRadius, h=50);
+                }
+            }
+            
+            translate([-boltSideMargin, verticalConnectorSize/2 + boltSideMargin, 0])
+            cylinder(r=screwRadiusM3, h=30);
+            
+            translate([-boltSideMargin, verticalConnectorSize/2 - boltSideMargin, 0])
+            cylinder(r=screwRadiusM3, h=30);
+            
+           
+        }
+    }
+    
+    
+    // BACK-CONNECTORS
+    // BOTTOM
+    translate([boltSideMargin, boltSideMargin, topThickness+screenHeight - 1])
     rotate([0, 0, -90])
     triConnectionPoint();
-    translate([8, depth / 2, topThickness+screenHeight - 1])
+    
+    translate([boltSideMargin, depth / 2 - boltSideMargin, topThickness+screenHeight - 1])
     rotate([0, 0, -90])
     triConnectionPoint();
     
-    translate([8, depth - 10, topThickness+screenHeight - 1])
+    translate([width / 2, boltSideMargin, topThickness+screenHeight - 1])
+    triConnectionPoint(); 
+    
+    // TOP
+    translate([boltSideMargin, depth / 2 + boltSideMargin, topThickness+screenHeight - 1])
     rotate([0, 0, -90])
     triConnectionPoint();
     
+    translate([boltSideMargin, depth - boltSideMargin, topThickness+screenHeight - 1])
+    rotate([0, 0, -90])
+    triConnectionPoint();
     
-    translate([width - extraSideWidth * 2 - 10, depth - 8, topThickness+screenHeight - 1])
+    translate([width - extraSideWidth * 2 - boltSideMargin, depth - boltSideMargin, topThickness+screenHeight - 1])
     rotate([0, 0, 180])
     triConnectionPoint();
+    
+    translate([width / 2, depth - boltSideMargin, topThickness+screenHeight - 1])
+    rotate([0, 0, 180])
+    triConnectionPoint(); 
 }
 
 
-module triConnectionPoint(width = 10, depth = 8) {
+
+
+module femalePedalConnector() {
+    depth = femaleConnLength + wallThickness;
+    difference() {
+       difference() {
+            cube([femalePedalConnectorWidth, depth, height]);
+
+            translate([0, 0, (height - femaleConnHeight)/2]) {
+
+                translate([wallThickness, 0, 0])
+                cube([femaleConnWidth * 2, femaleConnLength, femaleConnHeight]);
+                translate([wallThickness + femaleConnWidth * 2 + rightSideEnsurerWidth, 0, 0])
+                
+                cube([femaleConnWidth, femaleConnLength, femaleConnHeight]);
+                
+                translate([(femaleConnWidth - femaleConnCableSize)/2, femaleConnLength, 0]) {
+                    translate([wallThickness, 0, 0])
+                    cube([femaleConnCableSize, wallThickness, 10]);
+                    translate([wallThickness + femaleConnWidth, 0, 0])                
+                    cube([femaleConnCableSize, wallThickness, 10]);
+                    
+                    translate([wallThickness + femaleConnWidth * 2 + rightSideEnsurerWidth, 0, 0])
+                    cube([femaleConnCableSize, wallThickness, 10]);
+                }
+            }
+        }
+        translate([0, wallThickness, (height + femaleConnHeight)/2])
+        cube([femalePedalConnectorWidth, depth, height]);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+module triConnectionPoint(width = boltSideMargin * 2, depth = boltSideMargin * 2) {
     boxHeight = 5;
     prismHeight = height - topThickness - screenHeight - boxHeight + 1;
-    
+    translate([width/2, depth/2, 0])
     difference() 
     {
         union() 
@@ -370,10 +481,6 @@ module prism(width, depth, height) {
         polygon(points = triangle_points);
     }
 }
-
-
-
-
 
 
 

@@ -460,9 +460,12 @@ void loop() {
   bool prevButtonState = digitalRead(prevButtonPin);
   bool okButtonState = digitalRead(okButtonPin);
 
-  bool pedalNextState = digitalRead(pedalNextPin);
-  bool pedalPrevState = digitalRead(pedalPrevPin);
+  bool pedalNextState = analogRead(pedalNextPin) > 3500;
+  bool pedalPrevState = analogRead(pedalPrevPin) > 3500;
 
+  int pedalNextPinVal = analogRead(pedalNextPin);
+  int pedalPrevPinVal = analogRead(pedalPrevPin);
+  
   if (curImageBufferIndex >= remoteImageLength) {
     // Not Downloading an image
     if (

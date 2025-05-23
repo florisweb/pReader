@@ -1,8 +1,8 @@
 import { WebSocketServer } from 'ws';
 import { PReaderClient, clients } from './clients.js';
-import { readFile, newId } from './polyfill.js';
+import { readFile, newId, __dirname } from './polyfill.js';
 
-let Config = await readFile('./config.json');
+let Config = await readFile(__dirname + '/config.json');
 
 let MusicInterface;
 const SocketServer = new class {

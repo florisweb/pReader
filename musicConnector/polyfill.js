@@ -3,12 +3,8 @@ import fs from 'fs';
 import { dirname } from 'path';
 import { fileURLToPath } from 'url';
 
-const __dirname = getCurDir();
+export const __dirname = dirname(fileURLToPath(import.meta.url));
 const dataStoragePath = __dirname + '/DBData';
-
-export function getCurDir() {
-    return dirname(fileURLToPath(import.meta.url));
-}
 
 let curRequestPromise;
 export async function readFile(_path, _isJSON = true) {

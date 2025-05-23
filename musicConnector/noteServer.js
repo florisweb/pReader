@@ -22,7 +22,7 @@ export default class noteManager {
 		try {
 	        await this.client.access(Config);
 
-	        let files =  await this.client.list(Config.notePath);
+	        let files = await this.client.list(Config.notePath);
 	        let noteFile;
 	        for (let file of files)
 	        {
@@ -30,14 +30,23 @@ export default class noteManager {
 	        	noteFile = file;
 	        	break;
 	        }
-	        if (!noteFile) return console.log('Error: note could not be found.');
+	        if (!noteFile) 
+        	{
+        		this.client.close();
+        		return console.log('Error: note could not be found.');
+        	}
 
 	        let res = await this.client.downloadTo(CachePath, Config.notePath + '/' + noteFile.name);
-	        if (res.code !== 226) return console.log('Error: error while downloading note.');
+	        if (res.code !== 226) 
+        	{
+        		this.client.close();
+        		return console.log('Error: error while downloading note.');
+        	}
 	        this.onNoteDownloaded();
 	    } catch (e) {
 	    	console.log('error', e);
 	    }
+	    this.client.close();
 	}
 	onNoteDownloaded() {
 		let file = fs.readFileSync(CachePath);

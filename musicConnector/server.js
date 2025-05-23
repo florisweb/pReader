@@ -1,9 +1,13 @@
+#!/usr/bin/env node
+console.log('server');
+import { readFile, __dirname } from './polyfill.js';
+console.log('dir', __dirname);
+
 import SocketServer from './webSocketServer.js';
 import noteServer from './noteServer.js';
 import musicInterface from './musicInterface.js';
-import { readFile } from './polyfill.js';
 
-let Config = await readFile('./config.json');
+let Config = await readFile(__dirname + '/config.json');
 const NoteServer = new noteServer(Config.NotesAPI);
 setInterval(() => NoteServer.sync(), Config.NotesAPI.updateFrequency);
 

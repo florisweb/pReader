@@ -1,7 +1,7 @@
 import { parseMessage } from './message.js';
-import { readFile, newId } from './polyfill.js';
+import { readFile, newId, __dirname } from './polyfill.js';
 import SocketServer from './webSocketServer.js';
-let Config = await readFile('./config.json');
+let Config = await readFile(__dirname + '/config.json');
 
 
 

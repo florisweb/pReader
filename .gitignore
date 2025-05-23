@@ -1,6 +1,5 @@
 **/*.DS_Store
 **/node_modules/*
 musicConnector/config.json
-musicConnector/cachedSheetMusic
 musicConnector/cache
 software/config.h

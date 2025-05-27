@@ -12,6 +12,103 @@ extern "C" {
 #include <SD.h>
 
 
+
+
+
+#include <Adafruit_GFX.h>
+
+
+#define BUFFER_WIDTH 134
+#define BUFFER_HEIGHT 64
+class MyGFX : public Adafruit_GFX {
+  public:
+    MyGFX(int16_t w, int16_t h) : Adafruit_GFX(w, h) {
+      // Initialize the buffer
+      buffer = new uint8_t[w * h / 8];
+      memset(buffer, 0, w * h / 8); // Clear the buffer
+    }
+
+    ~MyGFX() {
+      delete[] buffer; // Clean up the buffer
+    }
+    void clearBuffer(int textColor) {
+      Serial.print("Clear buffer to: ");
+      Serial.println(textColor);
+      int val = 255;
+      if (textColor == 1) val = 0;
+      memset(buffer, val, BUFFER_WIDTH * BUFFER_HEIGHT / 8); // Clear the buffer
+
+      if (textColor < 2) return;
+      for (int x = 0; x < BUFFER_WIDTH; x++)
+      {
+        for (int y = 0; y < BUFFER_HEIGHT / 8; y++)
+        {
+          if (y % 2 == 0)
+          {
+            buffer[x * BUFFER_HEIGHT / 8 + y] = 0xaa;
+          } else buffer[x * BUFFER_HEIGHT / 8 + y] = 0x55;
+        }
+      }
+    }
+
+    void drawPixel(int16_t x, int16_t y, uint16_t color) override {
+      if ((x >= 0) && (x < WIDTH) && (y >= 0) && (y < HEIGHT)) {
+        // Set the pixel in the buffer
+        if (color) {
+          buffer[x + (y / 8) * WIDTH] |= (1 << (y % 8));
+        } else {
+          buffer[x + (y / 8) * WIDTH] &= ~(1 << (y % 8));
+        }
+      }
+    }
+
+    uint8_t* printAndGetBuffer(String text, int textColor, uint16_t* outBufHeight) {
+      clearBuffer(textColor);
+      int16_t tbx, tby; uint16_t tbw, tbh;
+
+      getTextBounds(text, 0, 0, &tbx, &tby, &tbw, &tbh);
+      *outBufHeight = (tbh + 7) & ~7;
+
+      Serial.print("Item: ");
+      Serial.print(text);
+      Serial.print(" text size: [");
+      Serial.print(tbh);
+      Serial.print(" | ");
+      Serial.print(*outBufHeight);
+      Serial.println("]");
+
+      setTextColor(0);
+      if (textColor == 1) setTextColor(1);
+      setCursor(tbx, tby); // up = -y
+      //      setCursor(0, 0); // up = -y
+      print(text);
+
+      return getBuffer(*outBufHeight);
+    }
+
+    uint8_t* getBuffer(uint16_t outBufHeight) {
+      uint8_t* flippedSubBuffer = new uint8_t[BUFFER_WIDTH * BUFFER_HEIGHT / 8];
+      for (int x = 0; x < BUFFER_WIDTH; x++) {
+        for (int y = 0; y < outBufHeight / 8; y++) {
+          flippedSubBuffer[x * outBufHeight / 8 + y] = buffer[y * BUFFER_HEIGHT / 8 + x];
+        }
+      }
+
+      return flippedSubBuffer;
+    }
+
+  private:
+    uint8_t* buffer;
+};
+
+MyGFX gfx(BUFFER_WIDTH, BUFFER_HEIGHT);
+
+
+
+
+
+
+
 connectionManager ConnectionManager;
 
 const int nextButtonPin = 27;
@@ -433,6 +530,7 @@ void setup() {
 
   loadConfigFile();
 
+
   Serial.println("Setting up WiFi...");
   delay(200);
 
@@ -443,8 +541,8 @@ void setup() {
                                           "\"description\": \"Sets text\""
                                           "}"
                                           "]");
-  ConnectionManager.setup(&onMessage);
-  ConnectionManager.setServerLocation("206.83.41.24", 8081);
+  //  ConnectionManager.setup(&onMessage);
+  //  ConnectionManager.setServerLocation("206.83.41.24", 8081);
 }
 
 
@@ -454,7 +552,7 @@ bool prevOkButtonState = false;
 bool prevPedalNextState = false;
 bool prevPedalPrevState = false;
 void loop() {
-  ConnectionManager.loop();
+  //  ConnectionManager.loop();
 
   bool nextButtonState = digitalRead(nextButtonPin);
   bool prevButtonState = digitalRead(prevButtonPin);
@@ -465,7 +563,7 @@ void loop() {
 
   int pedalNextPinVal = analogRead(pedalNextPin);
   int pedalPrevPinVal = analogRead(pedalPrevPin);
-  
+
   if (curImageBufferIndex >= remoteImageLength) {
     // Not Downloading an image
     if (
@@ -501,35 +599,14 @@ void loop() {
   {
     String ch = Serial.readStringUntil('\n'); // Read until newline
     Serial.println(ch);
-    if (ch == "r") {
-      Serial.println("rot 0");
-      display.setRotation(0);
-    } else if (ch == "R") {
-      display.setRotation(1);
-    } else if (ch == "d") {
-      display.display();
-    } else if (ch == "D") {
-      display.display(true);
-    } else if (ch == "f") {
-      display.firstPage();
-    } else if (ch == "n") {
-      display.nextPage();
-    } else if (ch == "c") {
-      display.fillScreen(GxEPD_WHITE);
-    } else if (ch == "m") {
+    if (ch == "m") {
       openPage(MUSIC);
     } else if (ch == "h") {
       openPage(HOME);
     } else if (ch == "up") {
       openPage(UPDATING_CATALOGUE);
-    } else if (ch == "next") {
-      next();
-    } else if (ch == "prev") {
-      prev();
-    } else if (ch == "ok") {
-      ok();
     } else if (ch == "lm") {
-      drawMusicImageFromSSD(musicPage_curMusicIndex, musicPage_curPageIndex);
+      drawMusicImageFromSD(musicPage_curMusicIndex, musicPage_curPageIndex);
     } else if (ch == "readBuff") {
       Serial.println("buff !== 255:");
       for (int i = 0; i < 40800; i++) // 40800
@@ -650,8 +727,7 @@ void openMusicPage(int _curMusicIndex) {
 
 // ================ MUSICPAGE ================
 
-
-void drawMusicImageFromSSD(int musicIndex, int pageIndex) {
+void drawMusicImageFromSD(int musicIndex, int pageIndex) {
   String musicFileName = "/" + (String)availableMusic_itemId[musicIndex] + "_[" + (String)pageIndex + "].txt";
   Serial.print("Start drawing: ");
   Serial.println(musicFileName);
@@ -679,9 +755,7 @@ void drawMusicImageFromSSD(int musicIndex, int pageIndex) {
   }
 
   file.close();
-
-  display.epd2.refresh(false); // FULL refresh when loading - speed not important
-  Serial.println("Finished drawing.");
+  display.epd2.refresh(false);
 }
 
 
@@ -703,7 +777,6 @@ void drawHomePage() {
   while (display.nextPage());
 
   drawHomePagePanels();
-  //  drawHomePagePanelThumbnails();
   display.epd2.refresh(true);
   drawHomePagePanels();
   display.epd2.refresh(true);
@@ -790,55 +863,6 @@ void homePage_selectMusicItem(int musicItemIndex) {
   //  //  drawHomePagePanelThumbnails();
   //  //  display.epd2.refresh(true);
 }
-
-//void homePage_selectMusicItem(int musicItemIndex) {
-//  Serial.print("Select ");
-//  Serial.print(musicItemIndex);
-//  Serial.print(" - prev: ");
-//  Serial.println(musicPage_curMusicIndex);
-//
-//  int prevIndex = musicPage_curMusicIndex;
-//  musicPage_curMusicIndex = musicItemIndex;
-//
-//  int learningStateCounts[] = {0, 0, 0};
-//  int preLearningState = 0;
-//  int preListIndex = 0;
-//  for (int i = 0; i < availableMusicCount; i++)
-//  {
-//    int learningState = min(availableMusic_learningState[i], 2);
-//    if (i == prevIndex)
-//    {
-//      preLearningState = learningState;
-//      preListIndex = learningStateCounts[learningState];
-//      break;
-//    }
-//
-//    learningStateCounts[learningState]++;
-//  }
-//
-//  const int hMargin = homePage_margin;
-//  const int vMargin = homePage_margin * 3;
-//  const int maxWidth = display.width() / horizontalListItems;
-//  const int maxHeight = (display.height() - homePage_headerHeight - 40) / verticalListItems;
-//
-//  const int width = maxWidth - hMargin * 2;
-//  const int height = maxHeight - vMargin * 2;
-//
-//  const int topX = maxWidth * preListIndex + hMargin;
-//  const int topY = maxHeight * preLearningState + vMargin + homePage_headerHeight + vMargin;
-//
-//  display.fillRect(topX, topY, width, height, GxEPD_WHITE);
-//
-//  drawHomePageHeader();
-//  drawHeaders();
-//  drawHomePagePanels();
-//  display.display(true);
-//
-//  for (int i = 0; i < 10; i++) display.epd2.refresh(true);
-//
-//  drawHomePagePanelThumbnails();
-//  display.epd2.refresh(true);
-//}
 
 
 void drawHomePageHeader() {
@@ -1005,6 +1029,31 @@ void directDrawPanel(int _listIndex, int _verticalListIndex, int musicIndex) {
 
   rect(topX + 9, topY + 8, width - 18, height - 40);
   directDrawThumbnail(topX, topY, musicIndex);
+
+  String itemName = availableMusic_name[musicIndex];
+  String subText = String(availableMusic_pageCount[musicIndex]) + " pages - ";
+  if (availableMusic_pageCount[musicIndex] == 1) subText = "1 page - ";
+  subText += learningStates[availableMusic_learningState[musicIndex]];
+
+  uint16_t x = topX + previewMargin;
+  uint16_t y = topY + previewHeight + previewMargin * 2 - 2;
+
+  int textColor = selected ? 2 : 0;
+  gfx.setFont();
+  directDrawText(itemName, x, y, textColor);
+
+  gfx.setFont();
+  directDrawText(subText, x, y + 7, textColor);
+}
+
+
+
+void directDrawText(String text, int x, int y, int textColor) {
+  gfx.setTextSize(1);
+  uint16_t bufferHeight;
+  uint8_t* bitmap = gfx.printAndGetBuffer(text, textColor, &bufferHeight);
+  directDrawBuffer(bitmap, x, y, BUFFER_WIDTH, bufferHeight);
+  delete[] bitmap;
 }
 
 void directDrawThumbnail(int topX, int topY, int musicIndex) {
@@ -1045,8 +1094,14 @@ void rect(int16_t x, int16_t y, int16_t width, int16_t height) {
     }
   }
 
-  display.epd2.writeImage(bytes, display.height() - y - height, x, height, width);
+  //  display.epd2.writeImage(bytes, display.height() - y - height, x, height, width);
+  directDrawBuffer(bytes, x, y, width, height);
   delete[] bytes;
+}
+
+void directDrawBuffer(uint8_t* _buffer, int16_t x, int16_t y, int16_t width, int16_t height) {
+  // correct -> bitmap rendered from bottom left, upwards in columns (of normal display) | width and height swapped
+  display.epd2.writeImage(_buffer, display.height() - y - height, x, height, width);
 }
 
 
@@ -1151,7 +1206,7 @@ void openPage(UIPage page) {
     Serial.println(downloaded);
     if (downloaded)
     {
-      drawMusicImageFromSSD(musicPage_curMusicIndex, musicPage_curPageIndex);
+      drawMusicImageFromSD(musicPage_curMusicIndex, musicPage_curPageIndex);
     } else {
       Serial.println("Not downloaded, downloading now...");
       downloadMusicImage(musicPage_curMusicIndex, musicPage_curPageIndex);

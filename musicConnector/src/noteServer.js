@@ -1,7 +1,8 @@
 import { parse } from 'node-html-parser';
 import fs from "fs";
 import { Client } from 'basic-ftp';
-const CachePath = 'cache/noteFile';
+import { __dirname } from './polyfill.js';
+const CachePath = __dirname + '/cache/noteFile';
 
 let Config;
 export default class noteManager {

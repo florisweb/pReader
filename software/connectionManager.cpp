@@ -17,6 +17,7 @@ String jsonString;
 
 unsigned long lastHeartBeat = 0;
 void (*onMessagePointer)(DynamicJsonDocument message);
+void (*onWiFiConnStateChangePointer)(bool _conned);
 void(* rebootESP) (void) = 0; // create a standard reset function
 
 
@@ -142,42 +143,78 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
 
 
 
-
-void connectionManager::setup(void _onMessage(DynamicJsonDocument message)) {
+void connectionManager::setup(void _onMessage(DynamicJsonDocument message), void _onWiFiConnStateChange(bool conned)) {
   pinMode(LED_BUILTIN, OUTPUT);
-  onMessagePointer    = _onMessage;
+  onMessagePointer = _onMessage;
+  onWiFiConnStateChangePointer = _onWiFiConnStateChange;
 
   Serial.begin(115200);
   Serial.setDebugOutput(true);
 
-  size_t SSIDCount = sizeof(HTTP_SSIDs)/sizeof(HTTP_SSIDs[0]);
+  WiFi.mode(WIFI_STA);
+  size_t SSIDCount = sizeof(HTTP_SSIDs) / sizeof(HTTP_SSIDs[0]);
   for (int i = 0; i < SSIDCount; i++) WiFiMulti.addAP(HTTP_SSIDs[i], HTTPpasswords[i]);
+ 
   attemptToConnect();
   setServerLocation(serverIP, serverPort);
+}
+
+void connectionManager::scanSSIDs() {
+  int n = WiFi.scanNetworks();
+  Serial.println("scan done");
+  if (n == 0) {
+    Serial.println("no networks found");
+  }  else {
+    Serial.print(n);
+    Serial.println(" networks found");
+    for (int i = 0; i < n; ++i) {
+      // Print SSID and RSSI for each network found
+      Serial.print(i + 1);
+      Serial.print(": ");
+      Serial.print(WiFi.SSID(i));
+      Serial.print(" (");
+      Serial.print(WiFi.RSSI(i));
+      Serial.print(")");
+      Serial.println((WiFi.encryptionType(i) == WIFI_AUTH_OPEN) ? " " : "*");
+      delay(10);
+    }
+  }
 }
 
 void connectionManager::attemptToConnect() {
   Serial.print("[ConnectionManager] Started connecting to WiFi ");
   int tries = 0;
+  if (connectedToWiFi) onWiFiConnStateChangePointer(false);
   connectedToWiFi = false;
+
+  scanSSIDs();
   while (WiFiMulti.run() != WL_CONNECTED)
   {
     Serial.print(".");
     tries++;
     delay(100);
     if (tries < connAttemptsPerTry) continue;
-    Serial.println("Failed to connect to WiFi!");
+    Serial.println("-> Failed to connect to WiFi!");
     return;
   }
-  
+
   connectedToWiFi = true;
+  onWiFiConnStateChangePointer(true);
   Serial.println("-> Connected!");
+  connectToWebSocket();
 }
 
 void connectionManager::setServerLocation(String _ip, int _port) {
   serverIP = _ip;
   serverPort = _port;
+  connectToWebSocket();
+}
 
+void connectionManager::connectToWebSocket() {
+  Serial.print("Connecting to websocket. WiFi connected?: ");
+  Serial.println(connectedToWiFi);
+
+  if (!connectedToWiFi) return;
   if (webSocket.isConnected()) {
     Serial.print("Changed serverLoc, was already connected, disconnecting...");
     webSocket.disconnect();
@@ -256,6 +293,8 @@ void connectionManager::defineAccessPointDocs(String JSONString) {
 
 long deltaHeartbeat = 0;
 void connectionManager::loop() {
+
+
   deltaHeartbeat = millis() - lastHeartBeat;
   if (deltaHeartbeat > heartbeatFrequency * 2 && webSocket.isConnected())
   {

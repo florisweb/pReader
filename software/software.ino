@@ -32,8 +32,6 @@ class MyGFX : public Adafruit_GFX {
       delete[] buffer; // Clean up the buffer
     }
     void clearBuffer(int textColor) {
-      Serial.print("Clear buffer to: ");
-      Serial.println(textColor);
       int val = 255;
       if (textColor == 1) val = 0;
       memset(buffer, val, BUFFER_WIDTH * BUFFER_HEIGHT / 8); // Clear the buffer
@@ -62,6 +60,9 @@ class MyGFX : public Adafruit_GFX {
       }
     }
 
+    void getTextBox(String text, int16_t* tbx, int16_t* tby, uint16_t* tbw, uint16_t* tbh) {
+      getTextBounds(text, 0, 0, tbx, tby, tbw, tbh);
+    }
     uint8_t* printAndGetBuffer(String text, int textColor, uint16_t* outBufHeight) {
       clearBuffer(textColor);
       int16_t tbx, tby; uint16_t tbw, tbh;
@@ -103,6 +104,14 @@ class MyGFX : public Adafruit_GFX {
 
 MyGFX gfx(BUFFER_WIDTH, BUFFER_HEIGHT);
 
+uint8_t WiFiIcon_on[] = {
+  0xff, 0x9f, 0xff, 0xcf, 0xfe, 0x67, 0xfb, 0x37, 0xf9, 0x93, 0xfc, 0xdb, 0xee, 0xdb, 0xc6, 0x4b, 0xc6, 0x4b, 0xee, 0xdb, 0xfc, 0xdb, 0xf9, 0x93, 0xfb, 0x37, 0xfe, 0x67, 0xff, 0xcf, 0xff, 0x9f
+};
+uint8_t WiFiIcon_off[] = {
+  0xff, 0x9f, 0xff, 0xd3, 0xfe, 0x61, 0xfb, 0x41, 0xf9, 0x83, 0xfd, 0x07, 0xee, 0x0b, 0xc4, 0x1b, 0xc8, 0x2b, 0xf0, 0x5b, 0xe0, 0xdb, 0xc1, 0x93, 0xc3, 0x37, 0xe6, 0x67, 0xff, 0xcf, 0xff, 0x9f
+};
+
+
 
 
 
@@ -114,8 +123,8 @@ connectionManager ConnectionManager;
 const int nextButtonPin = 27;
 const int prevButtonPin = 21;
 const int okButtonPin = 15;
-const int pedalNextPin = 25;
-const int pedalPrevPin = 33;
+const int pedalNextPin = 33;
+const int pedalPrevPin = 25;
 const int BlueLEDPin = 2;
 
 const int DisplayCS = 17; // SPI chip select
@@ -430,6 +439,11 @@ void onThumbnailResponse(DynamicJsonDocument message) {
 }
 
 
+void onWiFiConnStateChange(bool conned) {
+  Serial.print("Connected?: ");
+  Serial.println(conned);
+  updateConnectionHeaderIcon();
+}
 
 void onMessage(DynamicJsonDocument message) {
   String packetType = message["type"];
@@ -541,8 +555,8 @@ void setup() {
                                           "\"description\": \"Sets text\""
                                           "}"
                                           "]");
-  //  ConnectionManager.setup(&onMessage);
-  //  ConnectionManager.setServerLocation("206.83.41.24", 8081);
+  ConnectionManager.setup(&onMessage, &onWiFiConnStateChange);
+  ConnectionManager.setServerLocation("206.83.41.24", 8081);
 }
 
 
@@ -552,7 +566,7 @@ bool prevOkButtonState = false;
 bool prevPedalNextState = false;
 bool prevPedalPrevState = false;
 void loop() {
-  //  ConnectionManager.loop();
+  ConnectionManager.loop();
 
   bool nextButtonState = digitalRead(nextButtonPin);
   bool prevButtonState = digitalRead(prevButtonPin);
@@ -599,37 +613,11 @@ void loop() {
   {
     String ch = Serial.readStringUntil('\n'); // Read until newline
     Serial.println(ch);
-    if (ch == "m") {
-      openPage(MUSIC);
-    } else if (ch == "h") {
-      openPage(HOME);
-    } else if (ch == "up") {
-      openPage(UPDATING_CATALOGUE);
-    } else if (ch == "lm") {
-      drawMusicImageFromSD(musicPage_curMusicIndex, musicPage_curPageIndex);
-    } else if (ch == "readBuff") {
-      Serial.println("buff !== 255:");
-      for (int i = 0; i < 40800; i++) // 40800
-      {
-        int val = (int)display._buffer[i];
-        if (val == 255) continue;
-        Serial.print((String)val + ",");
-      }
-    } else if (ch == "re") {
-      display.epd2.refresh(false);
-    } else  if (ch == "RE") {
-      display.epd2.refresh(true);
-    } else if (ch == "down") {
-      downloadUndownloadedItems();
-    } else if (ch == "mem") {
+    if (ch == "mem") {
       Serial.print("Free mem: ");
       Serial.println(ESP.getFreeHeap());
     } else if (ch == "reboot") {
       _rebootESP();
-    } else if (ch == "drawTest") {
-      updateUpdaterPage();
-    } else if (ch == "DH") {
-      drawHomePagePanels();
     }
   }
 }
@@ -724,8 +712,29 @@ void openMusicPage(int _curMusicIndex) {
 
 
 
+// ================ GENERAL ================
+void drawConnectionHeaderIcon() {
+  int x = display.width() - 32;
+  int y = 16;
+  if (ConnectionManager.isConnected()) {
+    directDrawBuffer(WiFiIcon_on, x, y, 16, 16);
+  } else directDrawBuffer(WiFiIcon_off, x, y, 16, 16);
+}
+
+void updateConnectionHeaderIcon() {
+  drawConnectionHeaderIcon();
+  display.epd2.refresh(false);
+  drawConnectionHeaderIcon();
+  display.epd2.refresh(false);
+}
 
 // ================ MUSICPAGE ================
+void drawMusicPage(int musicIndex, int pageIndex) {
+  drawMusicImageFromSD(musicIndex, pageIndex);
+  musicPage_drawHeader(musicIndex, pageIndex);
+  drawConnectionHeaderIcon();
+  display.epd2.refresh(false);
+}
 
 void drawMusicImageFromSD(int musicIndex, int pageIndex) {
   String musicFileName = "/" + (String)availableMusic_itemId[musicIndex] + "_[" + (String)pageIndex + "].txt";
@@ -755,9 +764,26 @@ void drawMusicImageFromSD(int musicIndex, int pageIndex) {
   }
 
   file.close();
-  display.epd2.refresh(false);
 }
 
+void musicPage_drawHeader(int musicIndex, int pageIndex) {
+  String headerString = (String)availableMusic_name[musicIndex];
+  String headerSubString = (String)(pageIndex + 1) + "/" + (String)availableMusic_pageCount[musicIndex];
+  gfx.setFont();
+
+  int16_t tx, ty; uint16_t tw, th;
+  gfx.getTextBox(headerString, &tx, &ty, &tw, &th);
+
+  int x = display.width() / 2 - tw / 2;
+  directDrawText(headerString, x, 4, 0);
+
+  // Page index
+  gfx.setFont();
+  gfx.getTextBox(headerSubString, &tx, &ty, &tw, &th);
+  x = display.width() / 2 - tw / 2;
+  int y = display.height() - th - 12;
+  directDrawText(headerSubString, x, y, 0);
+}
 
 
 // ================ HOMEPAGE ================
@@ -776,8 +802,10 @@ void drawHomePage() {
   }
   while (display.nextPage());
 
+  drawConnectionHeaderIcon();
   drawHomePagePanels();
   display.epd2.refresh(true);
+  drawConnectionHeaderIcon();
   drawHomePagePanels();
   display.epd2.refresh(true);
 }
@@ -804,64 +832,6 @@ void homePage_selectMusicItem(int musicItemIndex) {
   std::array<int, 2> pos3 = getHomePagePanelPos(musicPage_curMusicIndex);
   drawMusicPreviewPanel(pos3[0], pos3[1], musicPage_curMusicIndex);
   display.epd2.refresh(true);
-
-
-
-  //
-  //
-  //  int prevIndex = musicPage_curMusicIndex;
-  //  musicPage_curMusicIndex = musicItemIndex;
-  //
-  //  int learningStateCounts[] = {0, 0, 0};
-  //  int preLearningState = 0;
-  //  int preListIndex = 0;
-  //  for (int i = 0; i < availableMusicCount; i++)
-  //  {
-  //    int learningState = min(availableMusic_learningState[i], 2);
-  //    if (i == prevIndex)
-  //    {
-  //      preLearningState = learningState;
-  //      preListIndex = learningStateCounts[learningState];
-  //      break;
-  //    }
-  //
-  //    learningStateCounts[learningState]++;
-  //  }
-  //
-  //  const int hMargin = homePage_margin;
-  //  const int vMargin = homePage_margin * 3;
-  //  const int maxWidth = display.width() / horizontalListItems;
-  //  const int maxHeight = (display.height() - homePage_headerHeight - 40) / verticalListItems;
-  //
-  //  const int width = maxWidth - hMargin * 2;
-  //  const int height = maxHeight - vMargin * 2;
-  //
-  //  const int topX = maxWidth * preListIndex + hMargin;
-  //  const int topY = maxHeight * preLearningState + vMargin + homePage_headerHeight + vMargin;
-  //
-  //  Serial.print("width: ");
-  //  Serial.print(width);
-  //  Serial.print(" height: ");
-  //  Serial.println(height);
-  //
-  //
-  //  //
-  //  //  drawHomePageHeader();
-  //  //  drawHeaders();
-  //
-  //  //  display.display(true);
-  //
-  //  display.fillRect(topX, topY, width, height, GxEPD_WHITE);
-  //  drawHomePagePanels();
-  //  display.epd2.refresh(true);
-  //  display.fillRect(topX, topY, width, height, GxEPD_WHITE);
-  //  drawHomePagePanels();
-  //  display.epd2.refresh(true);
-  //
-  //  //  for (int i = 0; i < 10; i++) display.epd2.refresh(true);
-  //
-  //  //  drawHomePagePanelThumbnails();
-  //  //  display.epd2.refresh(true);
 }
 
 
@@ -890,15 +860,6 @@ void drawHomePagePanels() {
   }
 }
 
-void drawHomePagePanelThumbnails() {
-  for (int i = 0; i < availableMusicCount; i++)
-  {
-    std::array<int, 2> pos = getHomePagePanelPos(i);
-    if (pos[0] > 3) continue;
-    drawMusicPreviewThumbnail(pos[0], pos[1], i);
-  }
-}
-
 
 void drawHeaders() {
   const int vOffset = 40;
@@ -921,93 +882,7 @@ void drawHeaders() {
   }
 }
 
-
-void drawMusicPreviewPanel(int _listIndex, int _verticalListIndex, int _musicItemIndex) {
-  directDrawPanel(_listIndex, _verticalListIndex, _musicItemIndex);
-  //
-  //  bool selected = _musicItemIndex == musicPage_curMusicIndex;
-  //  String curName = availableMusic_name[_musicItemIndex];
-  //  String subText = String(availableMusic_pageCount[_musicItemIndex]) + " pages - ";
-  //  if (availableMusic_pageCount[_musicItemIndex] == 1) subText = "1 page - ";
-  //  subText += learningStates[availableMusic_learningState[_musicItemIndex]];
-  //
-  //  const int hMargin = homePage_margin - 1;
-  //  const int vMargin = homePage_margin * 3 + 1;
-  //  const int maxWidth = display.width() / horizontalListItems;
-  //  const int maxHeight = (display.height() - homePage_headerHeight - 40) / verticalListItems;
-  //
-  //  const int width = maxWidth - hMargin * 2;
-  //  const int height = maxHeight - vMargin * 2;
-  //  const int previewMargin = 10 - 1; // Border AROUND preview
-  //  const int previewHeight = (width - 2 * previewMargin) * 1.41;
-  //
-  //  const int topX = maxWidth * _listIndex + hMargin;
-  //  const int topY = maxHeight * _verticalListIndex + vMargin + homePage_headerHeight + vMargin;
-  //
-  //  if (selected)
-  //  {
-  //    display.fillRect(topX, topY, width, height, GxEPD_BLACK);
-  //    display.fillRect(topX + previewMargin, topY + previewMargin, (width - 2 * previewMargin), previewHeight, GxEPD_WHITE);
-  //  } else {
-  //    display.drawRect(topX, topY, width, height, GxEPD_BLACK);
-  //    display.drawRect(topX + previewMargin, topY + previewMargin, (width - 2 * previewMargin), previewHeight, GxEPD_BLACK);
-  //  }
-  //
-  //  display.setFont();
-  //  if (selected) {
-  //    display.setTextColor(GxEPD_WHITE);
-  //  } else display.setTextColor(GxEPD_BLACK);
-  //
-  //  int16_t tbx, tby; uint16_t tbw, tbh;
-  //  display.getTextBounds(curName, 0, 0, &tbx, &tby, &tbw, &tbh);
-  //
-  //  uint16_t x = -tbx + topX + previewMargin;
-  //  uint16_t y = (((height - previewHeight) - tbh) / 2) - tby + topY + previewHeight;
-  //  display.setCursor(x, y);
-  //  display.print(curName);
-  //
-  //  display.setCursor(x, y + tbh * 1.5);
-  //  display.print(subText);
-}
-
-void drawMusicPreviewThumbnail(int _listIndex, int _verticalListIndex, int _musicItemIndex) {
-  String musicFileName = "/" + (String)availableMusic_itemId[_musicItemIndex] + "_[THUMB].txt";
-  file = SD.open(musicFileName);
-  if (!file) {
-    Serial.print("error opening (thumbnail draw) ");
-    Serial.println(musicFileName);
-    return;
-  }
-  const int previewMargin = 10;
-  const int hMargin = homePage_margin;
-  const int vMargin = homePage_margin * 3;
-
-  const int maxWidth = display.width() / horizontalListItems;
-  const int maxHeight = (display.height() - homePage_headerHeight - 40) / verticalListItems;
-  const int topX = maxWidth * _listIndex + hMargin + previewMargin;
-  const int topY = maxHeight * _verticalListIndex + vMargin + homePage_headerHeight + vMargin + previewMargin;
-
-
-  const int fileSize = file.size();
-  char text[fileSize];
-  while (file.available()) {
-    int bytesRead = file.readBytes(text, fileSize); // Read bytes into buffer
-
-    size_t outputLength;
-    uint8_t* decoded = base64_decode((const unsigned char *)text, bytesRead, &outputLength);
-    for (int i = 0; i < outputLength; i++) decoded[i] = ~decoded[i]; // Invert image color
-
-    // Different coordinate system due to direct RAM write
-    display.epd2.writeImage(decoded, display.height() - topY - thumbnailWidth, topX, thumbnailWidth, thumbnailHeight);
-    free(decoded);
-  }
-  file.close();
-}
-
-
-
-
-void directDrawPanel(int _listIndex, int _verticalListIndex, int musicIndex) {
+void drawMusicPreviewPanel(int _listIndex, int _verticalListIndex, int musicIndex) {
   const int hMargin = homePage_margin - 1;
   const int vMargin = homePage_margin * 3 + 1;
   const int maxWidth = display.width() / horizontalListItems;
@@ -1036,14 +911,20 @@ void directDrawPanel(int _listIndex, int _verticalListIndex, int musicIndex) {
   subText += learningStates[availableMusic_learningState[musicIndex]];
 
   uint16_t x = topX + previewMargin;
-  uint16_t y = topY + previewHeight + previewMargin * 2 - 2;
+  uint16_t y = (topY + previewHeight + previewMargin * 2);
+  Serial.print(itemName);
+  Serial.print(": ");
+  Serial.print(y);
+  Serial.print(" -> ");
+  y = y - y % 8;
+  Serial.println(y);
 
   int textColor = selected ? 2 : 0;
   gfx.setFont();
   directDrawText(itemName, x, y, textColor);
 
   gfx.setFont();
-  directDrawText(subText, x, y + 7, textColor);
+  directDrawText(subText, x, y + 8, textColor);
 }
 
 
@@ -1186,11 +1067,6 @@ void drawUpdatePage() {
   while (display.nextPage());
 }
 
-void updateUpdaterPage() {
-  Serial.print("UPD");
-  directDrawPanel(1, 1, 0);
-}
-
 void openPage(UIPage page) {
   prevPage = curPage;
   curPage = page;
@@ -1206,7 +1082,7 @@ void openPage(UIPage page) {
     Serial.println(downloaded);
     if (downloaded)
     {
-      drawMusicImageFromSD(musicPage_curMusicIndex, musicPage_curPageIndex);
+      drawMusicPage(musicPage_curMusicIndex, musicPage_curPageIndex);
     } else {
       Serial.println("Not downloaded, downloading now...");
       downloadMusicImage(musicPage_curMusicIndex, musicPage_curPageIndex);

@@ -70,19 +70,9 @@ class MyGFX : public Adafruit_GFX {
       getTextBounds(text, 0, 0, &tbx, &tby, &tbw, &tbh);
       *outBufHeight = (tbh + 7) & ~7;
 
-      Serial.print("Item: ");
-      Serial.print(text);
-      Serial.print(" text size: [");
-      Serial.print(tbh);
-      Serial.print(" | ");
-      Serial.print(*outBufHeight);
-      Serial.println("]");
-
       setTextColor(0);
       if (textColor == 1) setTextColor(1);
       setCursor(tbx, tby); // up = -y
-      //      setCursor(0, 0); // up = -y
-      print(text);
 
       return getBuffer(*outBufHeight);
     }
@@ -350,15 +340,21 @@ void loadConfigFile() {
 
   DynamicJsonDocument doc(1024);
   deserializeJson(doc, text);
-  importMusicItemSet(doc);
+  bool changed = importMusicItemSet(doc);
+  Serial.print("Loaded config, changed: ");
+  Serial.println(changed);
   openPage(HOME);
 }
 
-void importMusicItemSet(DynamicJsonDocument _jsonArr) {
+bool importMusicItemSet(DynamicJsonDocument _jsonArr) {
+  bool changed = false;
   for (int i = 0; i < sizeof(availableMusic_pageCount) / sizeof(int); i++)
   {
-    importMusicItem(_jsonArr[i], i);
+    bool itemChanged = importMusicItem(_jsonArr[i], i);
+    if (itemChanged) changed = true;
   }
+
+  int prevAvailableMusicCount = availableMusicCount;
 
   availableMusicCount = 0;
   for (int i = 0; i < sizeof(availableMusic_pageCount) / sizeof(int); i++)
@@ -366,20 +362,33 @@ void importMusicItemSet(DynamicJsonDocument _jsonArr) {
     if (availableMusic_pageCount[i] == 0) break;
     availableMusicCount = i + 1;
   }
+
+  if (prevAvailableMusicCount != availableMusicCount) return true;
+  return changed;
 }
 
-void importMusicItem(DynamicJsonDocument _obj, int i) {
+bool importMusicItem(DynamicJsonDocument _obj, int i) {
+  bool changed = false;
+  if (availableMusic_pageCount[i] != _obj["pages"]) changed = true;
   availableMusic_pageCount[i] = _obj["pages"];
-  if (availableMusic_pageCount[i] == 0) return;
+  if (availableMusic_pageCount[i] == 0) return changed;
+  const char* musicName = _obj["name"].as<const char*>();
+
+  if (availableMusic_itemId[i] != _obj["id"]) changed = true;
+  if (availableMusic_learningState[i] != _obj["learningState"]) changed = true;
+  if (availableMusic_name[i] != String(musicName)) changed = true;
+
   availableMusic_itemId[i] = _obj["id"];
   availableMusic_learningState[i] = _obj["learningState"];
-
-  const char* musicName = _obj["name"].as<const char*>();
   availableMusic_name[i] = String(musicName);
 
   int newMusicVersion = _obj["musicImageVersion"];
-  if (newMusicVersion != availableMusic_musicImageVersion[i] && availableMusic_musicImageVersion[i] != 0) removeMusicFiles(availableMusic_itemId[i]);
+  if (newMusicVersion != availableMusic_musicImageVersion[i] && availableMusic_musicImageVersion[i] != 0) {
+    removeMusicFiles(availableMusic_itemId[i]);
+    changed = true;
+  }
   availableMusic_musicImageVersion[i] = newMusicVersion;
+  return changed;
 }
 
 
@@ -457,7 +466,9 @@ void onMessage(DynamicJsonDocument message) {
 
   if (packetType == "curState")
   {
-    importMusicItemSet(message["data"]["availableMusic"]);
+    bool changed = importMusicItemSet(message["data"]["availableMusic"]);
+    Serial.print("Got new config, changed: ");
+    Serial.println(changed);
     writeConfigFile();
     downloadUndownloadedItems();
   }
@@ -876,6 +887,7 @@ void drawHeaders() {
 
     uint16_t x = homePage_margin - tbx;
     uint16_t y = homePage_margin + homePage_headerHeight + vOffset + maxHeight * i;
+    y = y - y % 8;
 
     display.setCursor(x, y);
     display.print(headerTitle);
@@ -889,21 +901,23 @@ void drawMusicPreviewPanel(int _listIndex, int _verticalListIndex, int musicInde
   const int maxHeight = (display.height() - homePage_headerHeight - 40) / verticalListItems;
 
   const int width = maxWidth - hMargin * 2;
-  const int height = maxHeight - vMargin * 2;
+  int height = maxHeight - vMargin * 2;
+  height = height - height % 8;
   const int previewMargin = 10 - 1; // Border AROUND preview
   const int previewHeight = (width - 2 * previewMargin) * 1.41;
 
   const int topX = maxWidth * _listIndex + hMargin;
-  const int topY = maxHeight * _verticalListIndex + vMargin + homePage_headerHeight + vMargin;
+  int topY = maxHeight * _verticalListIndex + vMargin + homePage_headerHeight + vMargin;
+  topY = topY - topY % 8; // Make sure it is aligned on full bytes
 
   bool selected = musicIndex == musicPage_curMusicIndex;
   if (selected)
   {
-    fillRect(topX, topY, width, height, 2); // GxEPD_BLACK
+    fillRect(topX, topY, width, height, 2);
   } else rect(topX, topY, width, height);
 
-  rect(topX + 9, topY + 8, width - 18, height - 40);
-  directDrawThumbnail(topX, topY, musicIndex);
+  rect(topX + 9, topY + 8, width - 18, height - 32);
+  directDrawThumbnail(topX, topY + 4, musicIndex);
 
   String itemName = availableMusic_name[musicIndex];
   String subText = String(availableMusic_pageCount[musicIndex]) + " pages - ";
@@ -912,12 +926,7 @@ void drawMusicPreviewPanel(int _listIndex, int _verticalListIndex, int musicInde
 
   uint16_t x = topX + previewMargin;
   uint16_t y = (topY + previewHeight + previewMargin * 2);
-  Serial.print(itemName);
-  Serial.print(": ");
-  Serial.print(y);
-  Serial.print(" -> ");
   y = y - y % 8;
-  Serial.println(y);
 
   int textColor = selected ? 2 : 0;
   gfx.setFont();

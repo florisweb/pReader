@@ -1,0 +1,8 @@
+{
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "jimp": "^1.6.0",
+    "pdf-to-img": "^4.4.0"
+  }
+}

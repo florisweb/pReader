@@ -60,7 +60,7 @@ void drawHomePageHeader() {
   display.setFont(&FreeSansBoldOblique18pt7b);
   display.getTextBounds(headerName, 0, 0, &tbx, &tby, &tbw, &tbh);
 
-  uint16_t x = homePage_margin - tbx;
+  uint16_t x = homePage_margin - tbx + 34; // 34 = offset for icon
   uint16_t y = ((homePage_headerHeight - tbh) / 2) - tby;
 
   display.setCursor(x, y);
@@ -160,9 +160,15 @@ void drawHomePage() {
   }
   while (display.nextPage());
 
+  int iconX = 10;
+  int iconY = 2;
+
+  directDrawBuffer(PReaderIcon, iconX, iconY, 32, 48);
   drawConnectionHeaderIcon();
   drawHomePagePanels();
   display.epd2.refresh(true);
+  
+  directDrawBuffer(PReaderIcon, iconX, iconY, 32, 48);
   drawConnectionHeaderIcon();
   drawHomePagePanels();
   display.epd2.refresh(true);
